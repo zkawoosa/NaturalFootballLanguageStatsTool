@@ -14,11 +14,13 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Confirmed DB direction and added SQLite choice to project spec.
 
 ### Day 2: Data source validation
-- [ ] Verify chosen public NFL source end-to-end (latency, rate limit, fields, failures).
-- [ ] Save 10 raw sample responses for teams/players/stats.
-- [ ] Pick source and record base URL, path, limits, supported seasons.
-- [ ] Capture raw schema mapping draft: raw -> canonical entities.
-- [ ] Confirm failure handling for timeout / 429 / 5xx / empty responses.
+- [X] Verify chosen public NFL source end-to-end (latency, rate limit, fields, failures).
+- [X] Save 10 raw sample responses for teams/players/stats.
+- [X] Pick source and record base URL, path, limits, supported seasons.
+- [X] Capture raw schema mapping draft: raw -> canonical entities.
+- [X] Confirm failure handling for timeout / 429 / 5xx / empty responses.
+- [X] Add Day 2 runtime logging template for data-source calls (timestamp, endpoint, status, latency, source, retries, rate-limit hits).
+- [X] Add source logger utility (`src/lib/logger.ts`) and wire it into source adapter calls, with stdout fallback + optional file sink.
 - [ ] Deliverable: source decision + raw samples + risk list.
 
 ### Day 3: Canonical schema v1
