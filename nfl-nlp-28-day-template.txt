@@ -1,0 +1,99 @@
+# NFL NLP Stats App — 28-Day Plan (1h/day)
+
+## Purpose
+Build a local-first TypeScript/Next.js NFL natural-language stats site, then deploy.
+
+## Day 1–28 Execution Template
+
+### Current focus
+- Day: 2 (In progress)
+
+### Day 1: Product contract lock
+- [X] Create `project-spec.md` (supported query types, response format, unsupported behavior, success criteria).
+- [X] Define “MVP done” checklist.
+- [X] Confirmed DB direction and added SQLite choice to project spec.
+
+### Day 2: Data source validation
+- [ ] Verify chosen public NFL source end-to-end (latency, rate limit, fields, failures).
+- [ ] Save 10 raw sample responses for teams/players/stats.
+- [ ] Pick source and record base URL, path, limits, supported seasons.
+- [ ] Capture raw schema mapping draft: raw -> canonical entities.
+- [ ] Confirm failure handling for timeout / 429 / 5xx / empty responses.
+- [ ] Deliverable: source decision + raw samples + risk list.
+
+### Day 3: Canonical schema v1
+- [ ] Define canonical entities: `team`, `player`, `game`, `teamStat`, `playerStat`.
+- [ ] Decide ID strategy, date format, units, null handling.
+
+### Day 4: Data adapter contract
+- [ ] Define `IDataSource` interface and method names/signatures.
+- [ ] Define standardized error codes and retry policy.
+- [ ] Confirm parser will never call source methods directly (use mapper layer).
+
+### Day 5: Parser vocabulary v1
+- [ ] Define intents (`leaders`, `player_stat`, `team_stat`, `weekly_summary`, `compare`).
+- [ ] Build alias maps for teams/stats and ambiguity policy.
+
+### Day 6: QA corpus baseline
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
+
+### Day 7: Environment + workflow
+- [ ] Create `.env.example` for source selection, cache, timeouts.
+- [ ] Lock Node/PNPM versions and script names (`dev`, `build`, `lint`, optional `start`).
+
+### Day 8: API/UX contracts
+- [ ] Define all API request/response shapes (`/api/query`, `/api/teams`, `/api/players`, `/api/status`).
+- [ ] Design UI response states: success/loading/error/empty/clarification.
+
+### Day 9: Reliability plan
+- [ ] Define logging fields (query, intent, confidence, latency, cache hit, source).
+- [ ] Define stale-data and fallback behavior when source fails.
+
+### Day 10: Codex-to-stack protocol
+- [ ] Define daily workflow: 1 task scope, 1-2 files max, 1 success check.
+- [ ] Freeze task list for Day 11 and begin.
+
+### Day 11–12: Repo + contracts in code
+- [ ] Scaffold Next.js + TypeScript.
+- [ ] Add folders/contracts from the spec and env config only.
+- [ ] Add `IDataSource` and app shell.
+
+### Day 13–14: Public source adapter
+- [ ] Implement public-data adapter + normalization pipeline.
+- [ ] Add basic cache and status endpoint.
+
+### Day 15–17: Query parser v1
+- [ ] Implement intent/slot extraction + alias resolution.
+- [ ] Add low-confidence and ambiguity responses.
+
+### Day 18–20: Query API route
+- [ ] Implement `POST /api/query`.
+- [ ] Map parsed intent to data calls via adapter.
+- [ ] Return structured response (`results`, `summary`, `needsClarification`).
+
+### Day 21–23: UI MVP
+- [ ] Build search UI, result cards/table, loading/error/empty states.
+- [ ] Add recent query history and mobile layout baseline.
+
+### Day 24–25: Query coverage expansion
+- [ ] Add more NL patterns: leaders, team/game, player seasonal and weekly views.
+- [ ] Add sort/limit filters.
+
+### Day 26–27: Performance + hardening
+- [ ] Add caching knobs, timeout/retry tuning, optional autocomplete endpoints.
+- [ ] Run parser corpus against implementation and patch top failures.
+
+### Day 28: Final QA + deploy prep
+- [ ] Run full manual QA pass on corpus.
+- [ ] Prepare deploy config and README.
+- [ ] Deploy preview, smoke test, record known limitations.
+
+## Weekly wrap block (end of each week)
+- [ ] What worked
+- [ ] What broke
+- [ ] What to defer
+- [ ] Next 3 priorities
+
+## Progress notes
+- I will track each day only in this file: `/Users/zainkawoosa/nfl-query/nfl-nlp-28-day-template.txt`.
