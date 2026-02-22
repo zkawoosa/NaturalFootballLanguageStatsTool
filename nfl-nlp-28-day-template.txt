@@ -6,7 +6,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ## Day 1–28 Execution Template
 
 ### Current focus
-- Day: 2 (In progress)
+- Day: 3 (In progress)
 
 ### Day 1: Product contract lock
 - [X] Create `project-spec.md` (supported query types, response format, unsupported behavior, success criteria).
@@ -24,8 +24,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Deliverable: source decision + raw samples + risk list.
 
 ### Day 3: Canonical schema v1
-- [ ] Define canonical entities: `team`, `player`, `game`, `teamStat`, `playerStat`.
-- [ ] Decide ID strategy, date format, units, null handling.
+- [X] Define canonical entities: `team`, `player`, `game`, `teamStat`, `playerStat` (drafted in `src/lib/schema/canonical.ts`).
+- [X] Decide ID strategy, date format, units, null handling.
+  - [X] Internal precision for derived decimals/rates is 6 dp.
+  - [X] Display precision for public output is 4 dp via `roundForDisplay`.
 
 ### Day 4: Data adapter contract
 - [ ] Define `IDataSource` interface and method names/signatures.
