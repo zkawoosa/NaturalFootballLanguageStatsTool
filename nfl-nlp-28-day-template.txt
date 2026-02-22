@@ -6,7 +6,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ## Day 1–28 Execution Template
 
 ### Current focus
-- Day: 3 (In progress)
+- Day: 4 (In progress)
 
 ### Day 1: Product contract lock
 - [X] Create `project-spec.md` (supported query types, response format, unsupported behavior, success criteria).
@@ -30,9 +30,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
   - [X] Display precision for public output is 4 dp via `roundForDisplay`.
 
 ### Day 4: Data adapter contract
-- [ ] Define `IDataSource` interface and method names/signatures.
-- [ ] Define standardized error codes and retry policy.
+- [X] Define `IDataSource` interface and method names/signatures.
+- [X] Define standardized error codes and retry policy (strict: retry only 429 with backoff).
 - [ ] Confirm parser will never call source methods directly (use mapper layer).
+- [X] Add and run source adapter tests for rate-limit retry/exhaustion and a quiet full-test suite.
 
 ### Day 5: Parser vocabulary v1
 - [ ] Define intents (`leaders`, `player_stat`, `team_stat`, `weekly_summary`, `compare`).

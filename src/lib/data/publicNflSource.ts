@@ -1,5 +1,5 @@
-import { getBalldontlieApiKey } from "@/lib/config";
-import { createRequestId, logEvent } from "@/lib/logger";
+import { getBalldontlieApiKey } from "../config.ts";
+import { createRequestId, logEvent } from "../logger.ts";
 
 export type NflSourceErrorCode =
   | "UNAUTHORIZED"
@@ -11,12 +11,17 @@ export type NflSourceErrorCode =
   | "NO_DATA";
 
 export class NflSourceError extends Error {
+  public readonly code: NflSourceErrorCode;
+  public readonly status?: number;
+
   constructor(
-    public code: NflSourceErrorCode,
+    code: NflSourceErrorCode,
     message: string,
-    public status?: number,
+    status?: number,
   ) {
     super(message);
+    this.code = code;
+    this.status = status;
     this.name = "NflSourceError";
   }
 }
@@ -109,6 +114,17 @@ export type TeamStat = {
   turnovers?: number | null;
 };
 
+export type NflRetryPolicy = {
+  id: string;
+  maxRetriesByStatus: Record<number, number>;
+  backoffMs: {
+    base: number;
+    min: number;
+    max: number;
+  };
+  retryOnStatus: number[];
+};
+
 export type Game = {
   id: string;
   week?: number | null;
@@ -137,8 +153,22 @@ const DEFAULT_BASE_URLS = [
 ];
 
 const DEFAULT_TIMEOUT_MS = 12_000;
-const DEFAULT_RATE_LIMIT_RETRIES = 2;
 const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
+const STRICT_RETRIES_BY_STATUS = {
+  429: 2,
+} as const;
+const RETRY_POLICY_DESCRIPTION = "strict_429_only";
+
+export const STRICT_429_RETRY_POLICY: NflRetryPolicy = {
+  id: RETRY_POLICY_DESCRIPTION,
+  maxRetriesByStatus: STRICT_RETRIES_BY_STATUS,
+  backoffMs: {
+    base: RATE_LIMIT_MIN_BACKOFF_MS,
+    min: 1000,
+    max: 60_000,
+  },
+  retryOnStatus: [429],
+};
 
 export class PublicNflSource implements IDataSource {
   private baseUrl: string;
@@ -595,11 +625,13 @@ export class PublicNflSource implements IDataSource {
           return (await response.json()) as T;
         }
 
-        if (response.status === 429 && tries < DEFAULT_RATE_LIMIT_RETRIES) {
+        const retryAllowed = this.shouldRetryStatus(response.status, tries);
+        if (retryAllowed) {
           tries += 1;
           const retryAfterHeader = response.headers.get("retry-after");
-          const retryDelay = this.resolveRetryDelayMs(retryAfterHeader, tries);
-          const message = `Rate-limited for ${path}. Retrying in ${retryDelay / 1000}s (${tries}/${DEFAULT_RATE_LIMIT_RETRIES}).`;
+          const retryDelay = this.resolveRetryDelayMs(retryAfterHeader, tries, STRICT_429_RETRY_POLICY.backoffMs.base);
+          const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[response.status] ?? 0;
+          const message = `Rate-limited for ${path}. Retrying in ${retryDelay / 1000}s (${tries}/${maxRetries}).`;
           await logEvent({
             requestId,
             source: "balldontlie",
@@ -619,14 +651,24 @@ export class PublicNflSource implements IDataSource {
           continue;
         }
 
-        const code =
-          response.status === 401
-            ? "UNAUTHORIZED"
-            : response.status === 404
-              ? "NOT_FOUND"
-              : response.status === 429
-                ? "RATE_LIMIT"
-                : "UPSTREAM_ERROR";
+        if (response.status !== 429 && tries > 0) {
+          await logEvent({
+            requestId,
+            source: "balldontlie",
+            method: "GET",
+            route,
+            status: response.status,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            retryCount: tries,
+            level: "warn",
+            ts: new Date().toISOString(),
+            errorCode: this.mapStatusToErrorCode(response.status),
+            errorMessage: `Retry policy (${RETRY_POLICY_DESCRIPTION}) skipped retries for status ${response.status}.`,
+          });
+        }
+
+        const code = this.mapStatusToErrorCode(response.status);
 
         const message = await response
           .text()
@@ -704,23 +746,36 @@ export class PublicNflSource implements IDataSource {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private resolveRetryDelayMs(retryAfterHeader: string | null, attempt: number): number {
+  private resolveRetryDelayMs(retryAfterHeader: string | null, attempt: number, baseBackoffMs: number): number {
     if (!retryAfterHeader) {
-      return RATE_LIMIT_MIN_BACKOFF_MS * attempt;
+      return Math.max(baseBackoffMs * attempt, 1000);
     }
 
     const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
     if (!Number.isNaN(retryAfterSeconds)) {
-      return Math.max(retryAfterSeconds * 1000, 1000);
+      return Math.max(retryAfterSeconds * 1000, STRICT_429_RETRY_POLICY.backoffMs.min);
     }
 
     const asDateMs = Date.parse(retryAfterHeader);
     if (Number.isFinite(asDateMs)) {
       const delta = asDateMs - Date.now();
-      return Math.max(delta, 1000);
+      return Math.max(delta, STRICT_429_RETRY_POLICY.backoffMs.min);
     }
 
-    return RATE_LIMIT_MIN_BACKOFF_MS * attempt;
+    return Math.max(baseBackoffMs * attempt, STRICT_429_RETRY_POLICY.backoffMs.min);
+  }
+
+  private shouldRetryStatus(status: number, tries: number): boolean {
+    if (!STRICT_429_RETRY_POLICY.retryOnStatus.includes(status)) return false;
+    const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[status] ?? 0;
+    return tries < maxRetries;
+  }
+
+  private mapStatusToErrorCode(status: number): NflSourceErrorCode {
+    if (status === 401) return "UNAUTHORIZED";
+    if (status === 404) return "NOT_FOUND";
+    if (status === 429) return "RATE_LIMIT";
+    return "UPSTREAM_ERROR";
   }
 
   private tryParseJson(value: string): unknown {

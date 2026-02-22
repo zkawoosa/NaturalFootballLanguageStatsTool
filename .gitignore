@@ -26,6 +26,7 @@ pnpm-debug.log*
 /data/*.db
 /data/*.sqlite
 /data/*.sqlite3
+/data/logs/
 
 # OS/editor files
 .DS_Store
