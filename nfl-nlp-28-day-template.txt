@@ -32,7 +32,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Day 4: Data adapter contract
 - [X] Define `IDataSource` interface and method names/signatures.
 - [X] Define standardized error codes and retry policy (strict: retry only 429 with backoff).
-- [ ] Confirm parser will never call source methods directly (use mapper layer).
+- [X] Confirm parser will never call source methods directly (use mapper layer).
 - [X] Add and run source adapter tests for rate-limit retry/exhaustion and a quiet full-test suite.
 
 ### Day 5: Parser vocabulary v1

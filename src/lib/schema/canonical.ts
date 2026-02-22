@@ -17,6 +17,21 @@ export function normalizeRate(value: number | null): number | null {
 
 export type SeasonType = "REG" | "POST" | "PREGAME" | "OFFSEASON" | "POSTPONED" | "UNKNOWN";
 
+export function isCanonicalSeasonType(value: string | null | undefined): value is SeasonType {
+  return value === "REG" || value === "POST" || value === "PREGAME" || value === "OFFSEASON" || value === "POSTPONED" || value === "UNKNOWN";
+}
+
+export function normalizeSeasonType(value: string | null | undefined): SeasonType {
+  if (!value) return "UNKNOWN";
+  const upper = value.toUpperCase();
+  if (upper === "POST" || upper === "POSTGAME" || upper === "POSTSEASON") return "POST";
+  if (upper === "REG") return "REG";
+  if (upper === "PREGAME") return "PREGAME";
+  if (upper === "OFFSEASON") return "OFFSEASON";
+  if (upper === "POSTPONED") return "POSTPONED";
+  return "UNKNOWN";
+}
+
 export type StatScope = "game" | "week" | "season";
 
 export type CanonicalRecordMeta = {
