@@ -43,6 +43,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Write 30–50 NL examples with expected intent/slots.
 - [ ] Mark easy/medium/hard + failure cases.
 - [ ] Think about code review: what to look for and what to reject before merge.
+- [X] Enforce review priorities:
+  - [ ] P0/P1 issues must be reported to user and require explicit permission before merge.
+  - [ ] P2/P3 can be fixed by Codex automatically.
+- [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 - [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 
 ### Day 7: Environment + workflow
