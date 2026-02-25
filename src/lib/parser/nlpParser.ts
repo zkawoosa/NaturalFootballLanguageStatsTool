@@ -1,6 +1,12 @@
 import { mapPlayerAlias, mapStatAlias, mapTeamAlias, STOP_WORDS } from "./aliasDictionary.ts";
 
-export type NflIntent = "leaders" | "player_stat" | "team_stat" | "weekly_summary" | "compare" | "unknown";
+export type NflIntent =
+  | "leaders"
+  | "player_stat"
+  | "team_stat"
+  | "weekly_summary"
+  | "compare"
+  | "unknown";
 
 export type QuerySlot = {
   teams: string[];
@@ -121,7 +127,7 @@ type ResolvedAlias = {
 function collectEntities(
   value: string,
   lookup: (candidate: string) => string[],
-  kind: "team" | "player" | "stat",
+  kind: "team" | "player" | "stat"
 ): ResolvedAlias[] {
   const words = value.split(" ").filter((word) => word.length > 0 && !STOP_WORDS.has(word));
   const results: ResolvedAlias[] = [];
@@ -177,7 +183,13 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "leaders";
   }
 
-  if (slots.players.length > 0 && (/\bstat\b/.test(value) || /\bstats?\b/.test(value) || /\byards\b/.test(value) || /\btd\b/.test(value))) {
+  if (
+    slots.players.length > 0 &&
+    (/\bstat\b/.test(value) ||
+      /\bstats?\b/.test(value) ||
+      /\byards\b/.test(value) ||
+      /\btd\b/.test(value))
+  ) {
     return "player_stat";
   }
 
@@ -195,7 +207,7 @@ function estimateConfidence(
   intent: NflIntent,
   slots: QuerySlot,
   requiresClarification: boolean,
-  ambiguities: ParsedAmbiguity[],
+  ambiguities: ParsedAmbiguity[]
 ): number {
   if (intent === "unknown") return 0.35;
 

@@ -18,7 +18,14 @@ export function normalizeRate(value: number | null): number | null {
 export type SeasonType = "REG" | "POST" | "PREGAME" | "OFFSEASON" | "POSTPONED" | "UNKNOWN";
 
 export function isCanonicalSeasonType(value: string | null | undefined): value is SeasonType {
-  return value === "REG" || value === "POST" || value === "PREGAME" || value === "OFFSEASON" || value === "POSTPONED" || value === "UNKNOWN";
+  return (
+    value === "REG" ||
+    value === "POST" ||
+    value === "PREGAME" ||
+    value === "OFFSEASON" ||
+    value === "POSTPONED" ||
+    value === "UNKNOWN"
+  );
 }
 
 export function normalizeSeasonType(value: string | null | undefined): SeasonType {

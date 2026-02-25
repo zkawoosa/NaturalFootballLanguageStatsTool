@@ -42,6 +42,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Day 6: QA corpus baseline
 - [ ] Write 30–50 NL examples with expected intent/slots.
 - [ ] Mark easy/medium/hard + failure cases.
+- [ ] Think about code review: what to look for and what to reject before merge.
+- [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 
 ### Day 7: Environment + workflow
 - [ ] Create `.env.example` for source selection, cache, timeouts.

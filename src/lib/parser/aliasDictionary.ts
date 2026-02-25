@@ -25,7 +25,7 @@ export const TEAM_ALIAS_MAP: Record<string, string[]> = {
   texans: ["HOU"],
   saints: ["NO"],
   seahawks: ["SEA"],
-  "saints": ["NO"],
+  saints: ["NO"],
   jaguars: ["JAX"],
   cowboys: ["DAL"],
   broncos: ["DEN"],
@@ -37,7 +37,7 @@ export const PLAYER_ALIAS_MAP: Record<string, string[]> = {
   "tom brady": ["tom brady"],
   "josh allen": ["josh allen"],
   "lamar jackson": ["lamar jackson"],
-  "josh": ["josh allen", "josh jacobs"],
+  josh: ["josh allen", "josh jacobs"],
   brady: ["tom brady", "patrick brady"],
 };
 

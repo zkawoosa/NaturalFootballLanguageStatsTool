@@ -85,7 +85,10 @@ export function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function createLogEvent(route: string, method: string): Omit<SourceLogEvent, "requestId" | "ts" | "level"> {
+export function createLogEvent(
+  route: string,
+  method: string
+): Omit<SourceLogEvent, "requestId" | "ts" | "level"> {
   return {
     route,
     method,

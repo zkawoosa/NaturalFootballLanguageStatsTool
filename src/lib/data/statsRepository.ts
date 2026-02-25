@@ -173,7 +173,7 @@ export class CanonicalStatsService implements ICanonicalStatsService {
 
 function deriveScope(
   season: number | null | undefined,
-  week: number | null | undefined,
+  week: number | null | undefined
 ): "game" | "week" | "season" {
   if (season === null || season === undefined) return "season";
   if (week === null || week === undefined) return "season";

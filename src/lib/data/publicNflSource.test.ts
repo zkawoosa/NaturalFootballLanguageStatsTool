@@ -37,7 +37,7 @@ test("public nfl source retries rate-limited requests before succeeding", async 
           },
         ],
       }),
-      { status: 200 },
+      { status: 200 }
     );
   };
 

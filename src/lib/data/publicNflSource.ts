@@ -14,11 +14,7 @@ export class NflSourceError extends Error {
   public readonly code: NflSourceErrorCode;
   public readonly status?: number;
 
-  constructor(
-    code: NflSourceErrorCode,
-    message: string,
-    status?: number,
-  ) {
+  constructor(code: NflSourceErrorCode, message: string, status?: number) {
     super(message);
     this.code = code;
     this.status = status;
@@ -147,10 +143,7 @@ export interface IDataSource {
   getTeamStats(query?: TeamStatsQuery): Promise<TeamStat[]>;
 }
 
-const DEFAULT_BASE_URLS = [
-  "https://api.balldontlie.io/nfl/v1",
-  "https://api.balldontlie.io/v1",
-];
+const DEFAULT_BASE_URLS = ["https://api.balldontlie.io/nfl/v1", "https://api.balldontlie.io/v1"];
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
@@ -270,7 +263,7 @@ export class PublicNflSource implements IDataSource {
       if (!Array.isArray(json?.data)) {
         throw new NflSourceError(
           "INVALID_RESPONSE",
-          `Player stats response missing data array for player ${playerId}`,
+          `Player stats response missing data array for player ${playerId}`
         );
       }
 
@@ -296,7 +289,10 @@ export class PublicNflSource implements IDataSource {
       baseParams.set("team", teamFilter);
     }
 
-    const teamStats = await this.fetchAllPlayerStatsAsTeamAggregate(baseParams, query.perPage ?? 100);
+    const teamStats = await this.fetchAllPlayerStatsAsTeamAggregate(
+      baseParams,
+      query.perPage ?? 100
+    );
     if (!teamStats.length) {
       return [];
     }
@@ -309,7 +305,12 @@ export class PublicNflSource implements IDataSource {
     });
 
     return teamStats.map((teamStat) => {
-      const key = this.buildTeamStatKey(teamStat.teamId, teamStat.season, teamStat.week, teamStat.seasonType);
+      const key = this.buildTeamStatKey(
+        teamStat.teamId,
+        teamStat.season,
+        teamStat.week,
+        teamStat.seasonType
+      );
       const points = gameStats.get(key);
       if (!points) return teamStat;
       return {
@@ -334,11 +335,7 @@ export class PublicNflSource implements IDataSource {
 
   private normalizePlayerIds(playerIds?: string[] | null): string[] {
     if (!playerIds || !playerIds.length) return [];
-    const deduped = new Set(
-      playerIds
-        .map((id) => String(id).trim())
-        .filter((id) => id.length > 0),
-    );
+    const deduped = new Set(playerIds.map((id) => String(id).trim()).filter((id) => id.length > 0));
     return [...deduped];
   }
 
@@ -367,10 +364,14 @@ export class PublicNflSource implements IDataSource {
         .join(" ") || null;
 
     return {
-      id: String(stat.id ?? `playerstat-${playerId}-${season ?? "na"}-${week ?? "na"}-${seasonType}`),
+      id: String(
+        stat.id ?? `playerstat-${playerId}-${season ?? "na"}-${week ?? "na"}-${seasonType}`
+      ),
       playerId,
       playerName,
-      teamId: this.asString(stat.team?.id ? String(stat.team.id) : stat.team_id ? String(stat.team_id) : undefined),
+      teamId: this.asString(
+        stat.team?.id ? String(stat.team.id) : stat.team_id ? String(stat.team_id) : undefined
+      ),
       teamName: this.asString(stat.team?.name ?? stat.team?.full_name),
       gameId: this.asString(stat.game_id ? String(stat.game_id) : undefined),
       season,
@@ -410,27 +411,28 @@ export class PublicNflSource implements IDataSource {
     teamId: string | null | undefined,
     season: number | null | undefined,
     week: number | null | undefined,
-    seasonType: string | null | undefined,
+    seasonType: string | null | undefined
   ): string {
     return `${teamId ?? "unknown"}-${season ?? "na"}-${week ?? "na"}-${seasonType ?? "na"}`;
   }
 
   private async fetchAllPlayerStatsAsTeamAggregate(
     baseParams: URLSearchParams,
-    perPage: number,
+    perPage: number
   ): Promise<TeamStat[]> {
     const allRawStats: RawPlayerStat[] = [];
-    const safePerPage = Number.isFinite(perPage) && perPage > 0 ? Math.min(Math.ceil(perPage), 100) : 100;
+    const safePerPage =
+      Number.isFinite(perPage) && perPage > 0 ? Math.min(Math.ceil(perPage), 100) : 100;
     const hardLimitPages = 50;
 
     for (let currentPage = 1; currentPage <= hardLimitPages; currentPage += 1) {
       const params = new URLSearchParams(baseParams);
       params.set("page", String(currentPage));
       params.set("per_page", String(safePerPage));
-      const json = await this.fetchFromSource<{ data: RawPlayerStat[]; meta?: { total_pages?: number } }>(
-        "stats",
-        params,
-      );
+      const json = await this.fetchFromSource<{
+        data: RawPlayerStat[];
+        meta?: { total_pages?: number };
+      }>("stats", params);
 
       if (Array.isArray(json?.data)) {
         allRawStats.push(...json.data);
@@ -479,7 +481,9 @@ export class PublicNflSource implements IDataSource {
     return [...bucket.values()];
   }
 
-  private async fetchTeamGamePoints(query: TeamStatsQuery): Promise<Map<string, { pointsFor: number; pointsAgainst: number }>> {
+  private async fetchTeamGamePoints(
+    query: TeamStatsQuery
+  ): Promise<Map<string, { pointsFor: number; pointsAgainst: number }>> {
     const gameParams = this.toParams({
       season: query.season,
       week: query.week,
@@ -529,7 +533,10 @@ export class PublicNflSource implements IDataSource {
     return map;
   }
 
-  private sumOrNull(current: number | null | undefined, next: number | null | undefined): number | null {
+  private sumOrNull(
+    current: number | null | undefined,
+    next: number | null | undefined
+  ): number | null {
     if (current === null || typeof current === "undefined") {
       return next ?? null;
     }
@@ -549,12 +556,18 @@ export class PublicNflSource implements IDataSource {
   private totalTurnoversFromPlayerStat(stat: PlayerStat): number | null {
     return this.sumOrNull(
       this.sumOrNull(stat.interceptions, null),
-      this.sumOrNull(stat.fumblesLost, null),
+      this.sumOrNull(stat.fumblesLost, null)
     );
   }
 
-  private async fetchFromSource<T>(path: string, params: URLSearchParams = new URLSearchParams()): Promise<T> {
-    const baseCandidates = [this.baseUrl, ...DEFAULT_BASE_URLS.filter((url) => url !== this.baseUrl)];
+  private async fetchFromSource<T>(
+    path: string,
+    params: URLSearchParams = new URLSearchParams()
+  ): Promise<T> {
+    const baseCandidates = [
+      this.baseUrl,
+      ...DEFAULT_BASE_URLS.filter((url) => url !== this.baseUrl),
+    ];
     const requestId = createRequestId();
     const startedAt = Date.now();
 
@@ -568,7 +581,8 @@ export class PublicNflSource implements IDataSource {
 
       let tries = 0;
       const route = `${base}${base.endsWith("/") ? "" : "/"}${path}`;
-      while (true) {
+      let shouldRetry = true;
+      while (shouldRetry) {
         let response: Response;
         try {
           response = await this.safeRequest(url.toString());
@@ -620,7 +634,7 @@ export class PublicNflSource implements IDataSource {
             retryCount: tries,
             level: "info",
             ts: new Date().toISOString(),
-            responseSizeBytes: Number(response.headers.get('content-length') || 0),
+            responseSizeBytes: Number(response.headers.get("content-length") || 0),
           });
           return (await response.json()) as T;
         }
@@ -629,7 +643,11 @@ export class PublicNflSource implements IDataSource {
         if (retryAllowed) {
           tries += 1;
           const retryAfterHeader = response.headers.get("retry-after");
-          const retryDelay = this.resolveRetryDelayMs(retryAfterHeader, tries, STRICT_429_RETRY_POLICY.backoffMs.base);
+          const retryDelay = this.resolveRetryDelayMs(
+            retryAfterHeader,
+            tries,
+            STRICT_429_RETRY_POLICY.backoffMs.base
+          );
           const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[response.status] ?? 0;
           const message = `Rate-limited for ${path}. Retrying in ${retryDelay / 1000}s (${tries}/${maxRetries}).`;
           await logEvent({
@@ -670,18 +688,17 @@ export class PublicNflSource implements IDataSource {
 
         const code = this.mapStatusToErrorCode(response.status);
 
-        const message = await response
-          .text()
-          .catch(() => "Unable to read response body");
+        const message = await response.text().catch(() => "Unable to read response body");
         const maybeJson = this.tryParseJson(message);
-        const detail = typeof maybeJson === "object" && maybeJson !== null
-          ? JSON.stringify(maybeJson)
-          : String(message);
+        const detail =
+          typeof maybeJson === "object" && maybeJson !== null
+            ? JSON.stringify(maybeJson)
+            : String(message);
 
         lastError = new NflSourceError(
           code,
           `Balldontlie request failed (${response.status}) for ${path}: ${detail}`,
-          response.status,
+          response.status
         );
         await logEvent({
           requestId,
@@ -702,6 +719,7 @@ export class PublicNflSource implements IDataSource {
           throw lastError;
         }
 
+        shouldRetry = false;
         break;
       }
     }
@@ -731,7 +749,7 @@ export class PublicNflSource implements IDataSource {
         signal: controller.signal,
       });
     } catch (error) {
-      if ((error instanceof Error) && error.name === "AbortError") {
+      if (error instanceof Error && error.name === "AbortError") {
         throw new NflSourceError("TIMEOUT", `Request timed out after ${this.timeoutMs}ms`, 408);
       }
       throw error instanceof NflSourceError
@@ -746,7 +764,11 @@ export class PublicNflSource implements IDataSource {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private resolveRetryDelayMs(retryAfterHeader: string | null, attempt: number, baseBackoffMs: number): number {
+  private resolveRetryDelayMs(
+    retryAfterHeader: string | null,
+    attempt: number,
+    baseBackoffMs: number
+  ): number {
     if (!retryAfterHeader) {
       return Math.max(baseBackoffMs * attempt, 1000);
     }
