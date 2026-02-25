@@ -43,8 +43,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 
 ### Day 7: Environment + workflow
-- [ ] Create `.env.example` for source selection, cache, timeouts.
-- [ ] Lock Node/PNPM versions and script names (`dev`, `build`, `lint`, optional `start`).
+- [X] Create `.env.example` for source selection, cache, timeouts.
+- [X] Lock Node/PNPM versions and script names (`dev`, `build`, `lint`, optional `start`).
 
 ### Day 8: API/UX contracts
 - [ ] Write 30–50 NL examples with expected intent/slots.
