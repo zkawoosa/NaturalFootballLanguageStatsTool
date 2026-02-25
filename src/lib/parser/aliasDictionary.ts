@@ -25,7 +25,6 @@ export const TEAM_ALIAS_MAP: Record<string, string[]> = {
   texans: ["HOU"],
   saints: ["NO"],
   seahawks: ["SEA"],
-  saints: ["NO"],
   jaguars: ["JAX"],
   cowboys: ["DAL"],
   broncos: ["DEN"],

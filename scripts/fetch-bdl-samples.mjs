@@ -9,7 +9,7 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const ENV_FILE = path.join(ROOT_DIR, '.env');
 
 const SAMPLES_DIR = path.join(ROOT_DIR, 'data', 'samples');
-const BASE_URL_DEFAULT = 'https://api.balldontlie.io/v1/nfl';
+  const BASE_URL_DEFAULT = 'https://api.balldontlie.io/nfl/v1';
 const TIMEOUT_MS = Number(process.env.BL_FETCH_TIMEOUT_MS || 15000);
 
 const SAMPLE_REQUESTS = [

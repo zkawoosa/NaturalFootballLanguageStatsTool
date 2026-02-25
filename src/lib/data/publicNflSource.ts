@@ -769,22 +769,28 @@ export class PublicNflSource implements IDataSource {
     attempt: number,
     baseBackoffMs: number
   ): number {
+    const clamp = (value: number) =>
+      Math.min(
+        Math.max(value, STRICT_429_RETRY_POLICY.backoffMs.min),
+        STRICT_429_RETRY_POLICY.backoffMs.max
+      );
+
     if (!retryAfterHeader) {
-      return Math.max(baseBackoffMs * attempt, 1000);
+      return clamp(baseBackoffMs * attempt);
     }
 
     const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
     if (!Number.isNaN(retryAfterSeconds)) {
-      return Math.max(retryAfterSeconds * 1000, STRICT_429_RETRY_POLICY.backoffMs.min);
+      return clamp(retryAfterSeconds * 1000);
     }
 
     const asDateMs = Date.parse(retryAfterHeader);
     if (Number.isFinite(asDateMs)) {
       const delta = asDateMs - Date.now();
-      return Math.max(delta, STRICT_429_RETRY_POLICY.backoffMs.min);
+      return clamp(delta);
     }
 
-    return Math.max(baseBackoffMs * attempt, STRICT_429_RETRY_POLICY.backoffMs.min);
+    return clamp(baseBackoffMs * attempt);
   }
 
   private shouldRetryStatus(status: number, tries: number): boolean {

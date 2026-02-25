@@ -5,9 +5,6 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ## Day 1–28 Execution Template
 
-### Current focus
-- Day: 5 (In progress)
-
 ### Day 1: Product contract lock
 - [X] Create `project-spec.md` (supported query types, response format, unsupported behavior, success criteria).
 - [X] Define “MVP done” checklist.
@@ -39,14 +36,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Define intents (`leaders`, `player_stat`, `team_stat`, `weekly_summary`, `compare`).
 - [X] Build alias maps for teams/stats and ambiguity policy.
 
-### Day 6: QA corpus baseline
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
-- [ ] Think about code review: what to look for and what to reject before merge.
+### Day 6: QA corpus baseline [X]
 - [X] Enforce review priorities:
   - [ ] P0/P1 issues must be reported to user and require explicit permission before merge.
-  - [ ] P2/P3 can be fixed by Codex automatically.
-- [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
+  - [ ] P2/P3 are auto-corrected before the next checkpoint.
 - [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 
 ### Day 7: Environment + workflow
@@ -54,6 +47,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Lock Node/PNPM versions and script names (`dev`, `build`, `lint`, optional `start`).
 
 ### Day 8: API/UX contracts
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
 - [ ] Define all API request/response shapes (`/api/query`, `/api/teams`, `/api/players`, `/api/status`).
 - [ ] Design UI response states: success/loading/error/empty/clarification.
 
@@ -61,8 +56,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Define logging fields (query, intent, confidence, latency, cache hit, source).
 - [ ] Define stale-data and fallback behavior when source fails.
 
-### Day 10: Codex-to-stack protocol
-- [ ] Define daily workflow: 1 task scope, 1-2 files max, 1 success check.
+### Day 10: Workflow protocol
+- [ ] Define daily workflow: one-task scope, one-to-two files max, one success check.
 - [ ] Freeze task list for Day 11 and begin.
 
 ### Day 11–12: Repo + contracts in code
@@ -105,6 +100,3 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] What broke
 - [ ] What to defer
 - [ ] Next 3 priorities
-
-## Progress notes
-- I will track each day only in this file: `/Users/zainkawoosa/nfl-query/nfl-nlp-28-day-template.txt`.

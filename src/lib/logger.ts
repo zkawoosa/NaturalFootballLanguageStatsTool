@@ -36,14 +36,10 @@ async function appendToFile(line: string) {
     return;
   }
 
-  try {
-    const fs = await import("node:fs/promises");
-    const { dirname } = await import("node:path");
-    await fs.mkdir(dirname(LOG_FILE_PATH), { recursive: true });
-    await fs.appendFile(LOG_FILE_PATH, `${line}\n`, { encoding: "utf8" });
-  } catch {
-    console.error("Failed to write source-runtime.log file");
-  }
+  const fs = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  await fs.mkdir(dirname(LOG_FILE_PATH), { recursive: true });
+  await fs.appendFile(LOG_FILE_PATH, `${line}\n`, { encoding: "utf8" });
 }
 
 function formatConsoleLine(event: SourceLogEvent, line: string) {

@@ -63,7 +63,7 @@ export function parseNflQuery(input: string): ParsedQuery {
     if (Number.isFinite(season)) slots.season = season;
   }
 
-  collectEntities(normalized, mapTeamAlias, "team").forEach((resolved) => {
+  collectEntities(normalized, mapTeamAlias).forEach((resolved) => {
     if (resolved.ambiguous) {
       ambiguities.push({
         slot: "team",
@@ -77,7 +77,7 @@ export function parseNflQuery(input: string): ParsedQuery {
     }
   });
 
-  collectEntities(normalized, mapPlayerAlias, "player").forEach((resolved) => {
+  collectEntities(normalized, mapPlayerAlias).forEach((resolved) => {
     if (resolved.ambiguous) {
       ambiguities.push({
         slot: "player",
@@ -124,11 +124,7 @@ type ResolvedAlias = {
   candidates: string[];
 };
 
-function collectEntities(
-  value: string,
-  lookup: (candidate: string) => string[],
-  kind: "team" | "player" | "stat"
-): ResolvedAlias[] {
+function collectEntities(value: string, lookup: (candidate: string) => string[]): ResolvedAlias[] {
   const words = value.split(" ").filter((word) => word.length > 0 && !STOP_WORDS.has(word));
   const results: ResolvedAlias[] = [];
   const seenCanonical = new Set<string>();
@@ -168,9 +164,6 @@ function collectEntities(
     }
   }
 
-  if (kind === "stat") {
-    return results;
-  }
   return results;
 }
 
@@ -228,5 +221,17 @@ function estimateConfidence(
 }
 
 function getCurrentWeek(): number {
-  return new Date().getUTCMonth() === 10 ? 1 : 1;
+  const now = new Date();
+  const seasonYear = now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+  const seasonStart = new Date(Date.UTC(seasonYear, 8, 1));
+
+  if (Number.isNaN(seasonStart.getTime()) || now < seasonStart) {
+    return 1;
+  }
+
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const rawWeek = Math.floor((now.getTime() - seasonStart.getTime()) / msPerWeek) + 1;
+
+  if (Number.isNaN(rawWeek)) return 1;
+  return Math.max(1, Math.min(18, rawWeek));
 }
