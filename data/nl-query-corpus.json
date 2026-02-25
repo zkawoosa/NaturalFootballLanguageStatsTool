@@ -1,0 +1,456 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-02-25",
+  "examples": [
+    {
+      "query": "Who leads the league in passing yards this season?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "passing_yards",
+        "scope": "league",
+        "scopeType": "season"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Show the top 5 teams by points for this week.",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "points",
+        "scope": "league",
+        "scopeType": "week",
+        "limit": 5
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Who has most sacks so far this season for the Ravens?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "sacks",
+        "scope": "team",
+        "team": "Baltimore Ravens",
+        "scopeType": "season"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Compare Mahomes and Allen for fantasy points in week 10.",
+      "intent": "compare",
+      "expectedSlots": {
+        "players": ["Patrick Mahomes", "Josh Allen"],
+        "stat": "fantasy_points",
+        "scopeType": "week",
+        "week": 10
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "How many rushing touchdowns did Christian McCaffrey have last week?",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Christian McCaffrey",
+        "stat": "rushing_td",
+        "scopeType": "week",
+        "week": "previous"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "What are Patrick Mahomes passing attempts this season?",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Patrick Mahomes",
+        "stat": "passing_attempts",
+        "scopeType": "season"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Show me the Bills player stats from week 3 this year.",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "Buffalo Bills",
+        "scopeType": "week",
+        "week": 3
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "How did the Giants perform in week 8?",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "New York Giants",
+        "scopeType": "week",
+        "week": 8
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Give me weekly summary for the Chiefs vs the Eagles.",
+      "intent": "weekly_summary",
+      "expectedSlots": {
+        "teams": ["Kansas City Chiefs", "Philadelphia Eagles"],
+        "scopeType": "week",
+        "scope": "game"
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Who won this week’s game between the 49ers and Seahawks and what was the score?",
+      "intent": "weekly_summary",
+      "expectedSlots": {
+        "teams": ["San Francisco 49ers", "Seattle Seahawks"],
+        "scopeType": "week",
+        "metric": "score"
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Compare receiving yards between Tyreek Hill and Cooper Kupp this season.",
+      "intent": "compare",
+      "expectedSlots": {
+        "players": ["Tyreek Hill", "Cooper Kupp"],
+        "stat": "receiving_yards",
+        "scopeType": "season"
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "How many touchdowns did Travis Kelce score in week 14?",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Travis Kelce",
+        "stat": "receiving_td",
+        "scopeType": "week",
+        "week": 14
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Which team had the most passing yards in week 6?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "passing_yards",
+        "scope": "team",
+        "scopeType": "week",
+        "week": 6
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Show the Dallas defense turnovers in week 11.",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "Dallas Cowboys",
+        "stat": "turnovers",
+        "scopeType": "week",
+        "week": 11
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Get stats for Derrick Henry this week.",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Derrick Henry",
+        "scopeType": "week"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Who had the most passing touchdowns in week 3 of this season?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "passing_td",
+        "scope": "league",
+        "scopeType": "week",
+        "week": 3
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "How many interceptions did Tom Brady throw in week 1?",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Tom Brady",
+        "stat": "interceptions",
+        "scopeType": "week",
+        "week": 1
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Compare the Cowboys, Eagles, and Giants sacks this week.",
+      "intent": "compare",
+      "expectedSlots": {
+        "teams": ["Dallas Cowboys", "Philadelphia Eagles", "New York Giants"],
+        "stat": "sacks",
+        "scopeType": "week"
+      },
+      "difficulty": "hard",
+      "isFailure": false
+    },
+    {
+      "query": "What was this week's rushing yards for the Packers and Vikings?",
+      "intent": "compare",
+      "expectedSlots": {
+        "teams": ["Green Bay Packers", "Minnesota Vikings"],
+        "stat": "rushing_yards",
+        "scopeType": "week"
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Show me Lamar Jackson fantasy points in week 15 by week.",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Lamar Jackson",
+        "stat": "fantasy_points",
+        "scopeType": "week",
+        "week": 15
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Get player stats for the Chiefs in week 17.",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "Kansas City Chiefs",
+        "scopeType": "week",
+        "week": 17,
+        "aggregate": true
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "How many fumbles were lost by the Raiders last week?",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "Las Vegas Raiders",
+        "stat": "fumbles_lost",
+        "scopeType": "week",
+        "week": "previous"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Who leads the league in tackles in 2024?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "tackles",
+        "scope": "league",
+        "season": 2024
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Show me Seahawks weekly summary for week 2.",
+      "intent": "weekly_summary",
+      "expectedSlots": {
+        "team": "Seattle Seahawks",
+        "scopeType": "week",
+        "week": 2
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "Compare Austin Ekeler and Alvin Kamara receiving yards this season.",
+      "intent": "compare",
+      "expectedSlots": {
+        "players": ["Austin Ekeler", "Alvin Kamara"],
+        "stat": "receiving_yards",
+        "scopeType": "season"
+      },
+      "difficulty": "medium",
+      "isFailure": false
+    },
+    {
+      "query": "What were the team stats for Miami Dolphins?",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "Miami Dolphins",
+        "scopeType": "season"
+      },
+      "difficulty": "easy",
+      "isFailure": false
+    },
+    {
+      "query": "Which player has most fantasy points in the AFC West this week?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "fantasy_points",
+        "scope": "conference",
+        "scopeValue": "AFC West",
+        "scopeType": "week"
+      },
+      "difficulty": "hard",
+      "isFailure": true,
+      "failureCase": "Unsupported scope for initial MVP; requires conference aggregation."
+    },
+    {
+      "query": "Show top players by passing in week 20.",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "passing_yards",
+        "scope": "league",
+        "scopeType": "week",
+        "week": 20
+      },
+      "difficulty": "medium",
+      "isFailure": true,
+      "failureCase": "Invalid week number (out of range)."
+    },
+    {
+      "query": "Who scored the most for team ???",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "points"
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Unclear/garbled team name."
+    },
+    {
+      "query": "Can you show me weather in week 6?",
+      "intent": "unknown",
+      "expectedSlots": {
+        "rawQuery": "Can you show me weather in week 6?"
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Out-of-domain intent."
+    },
+    {
+      "query": "Who is the starting QB for the Saints?",
+      "intent": "unknown",
+      "expectedSlots": {
+        "entity": "starting_qb",
+        "team": "New Orleans Saints"
+      },
+      "difficulty": "medium",
+      "isFailure": true,
+      "failureCase": "Unsupported query type (roster metadata not in MVP)."
+    },
+    {
+      "query": "Compare three teams with no stat selected.",
+      "intent": "compare",
+      "expectedSlots": {
+        "teams": ["Pittsburgh Steelers", "Baltimore Ravens", "Cleveland Browns"]
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Missing metric for compare intent."
+    },
+    {
+      "query": "What is Travis Kelce's weight?",
+      "intent": "unknown",
+      "expectedSlots": {
+        "player": "Travis Kelce",
+        "metric": "weight"
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Profile/stats domain mismatch."
+    },
+    {
+      "query": "Show player stats for the game yesterday.",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "time": "yesterday"
+      },
+      "difficulty": "medium",
+      "isFailure": true,
+      "failureCase": "Date-only phrasing without player identity."
+    },
+    {
+      "query": "Give me passing completions for team 123.",
+      "intent": "team_stat",
+      "expectedSlots": {
+        "team": "123",
+        "stat": "passing_completions"
+      },
+      "difficulty": "medium",
+      "isFailure": true,
+      "failureCase": "Invalid team identifier."
+    },
+    {
+      "query": "Who had the highest number of moon tacos in week 7?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "stat": "moon_tacos"
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Stat not supported."
+    },
+    {
+      "query": "How many touchdowns did Kareem Jackson have this season?",
+      "intent": "player_stat",
+      "expectedSlots": {
+        "player": "Kareem Jackson",
+        "stat": "defensive_td",
+        "scopeType": "season"
+      },
+      "difficulty": "hard",
+      "isFailure": true,
+      "failureCase": "Defensive TD not in exposed parser stats map yet."
+    },
+    {
+      "query": "Show score from Giants vs Eagles now.",
+      "intent": "weekly_summary",
+      "expectedSlots": {
+        "teams": ["New York Giants", "Philadelphia Eagles"]
+      },
+      "difficulty": "easy",
+      "isFailure": true,
+      "failureCase": "Missing explicit week/context; multiple schedule matches possible."
+    },
+    {
+      "query": "Who are the best in all categories this year?",
+      "intent": "leaders",
+      "expectedSlots": {
+        "scope": "league",
+        "scopeType": "season"
+      },
+      "difficulty": "hard",
+      "isFailure": true,
+      "failureCase": "No single stat specified."
+    },
+    {
+      "query": "Compare the top 3 receivers by catches.",
+      "intent": "compare",
+      "expectedSlots": {
+        "entityType": "player",
+        "stat": "receptions",
+        "limit": 3
+      },
+      "difficulty": "hard",
+      "isFailure": true,
+      "failureCase": "Ambiguous team/player target with ranking-only request."
+    }
+  ]
+}

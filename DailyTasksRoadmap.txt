@@ -46,13 +46,14 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Create `.env.example` for source selection, cache, timeouts.
 - [X] Lock Node/PNPM versions and script names (`dev`, `build`, `lint`, optional `start`).
 
-### Day 8: API/UX contracts
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
-- [ ] Define all API request/response shapes (`/api/query`, `/api/teams`, `/api/players`, `/api/status`).
-- [ ] Design UI response states: success/loading/error/empty/clarification.
+### Day 8: API/UX contracts [X]
+- [X] Define all API request/response shapes (`/api/query`, `/api/teams`, `/api/players`, `/api/status`).
+- [X] Design UI response states: success/loading/error/empty/clarification.
+- [X] Document route index.
 
 ### Day 9: Reliability plan
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
 - [ ] Define logging fields (query, intent, confidence, latency, cache hit, source).
 - [ ] Define stale-data and fallback behavior when source fails.
 
