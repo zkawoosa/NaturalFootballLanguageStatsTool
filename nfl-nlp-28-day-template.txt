@@ -6,7 +6,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ## Day 1–28 Execution Template
 
 ### Current focus
-- Day: 4 (In progress)
+- Day: 5 (In progress)
 
 ### Day 1: Product contract lock
 - [X] Create `project-spec.md` (supported query types, response format, unsupported behavior, success criteria).
@@ -36,8 +36,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add and run source adapter tests for rate-limit retry/exhaustion and a quiet full-test suite.
 
 ### Day 5: Parser vocabulary v1
-- [ ] Define intents (`leaders`, `player_stat`, `team_stat`, `weekly_summary`, `compare`).
-- [ ] Build alias maps for teams/stats and ambiguity policy.
+- [X] Define intents (`leaders`, `player_stat`, `team_stat`, `weekly_summary`, `compare`).
+- [X] Build alias maps for teams/stats and ambiguity policy.
 
 ### Day 6: QA corpus baseline
 - [ ] Write 30–50 NL examples with expected intent/slots.
