@@ -112,12 +112,15 @@ This file exports `RuntimeLogEvent`, `SourceLogEvent`, `QueryLogEvent`, `RouteRe
 - Optional console output for dev/tests
 - Planned Phase 2: persist to SQLite table `query_events`
 
-## Fallback behavior
+## Fallback strategy
 
-- Primary rule: on source failures (401/404/5xx/timeouts), return an error response and do not guess values.
-- Stale fallback rule: when source fails but fresh enough cache is available (policy not implemented yet), prefer stale rows and return:
-  - `route_response.resultCount` set from cached data length
-  - `route_response.sourceFallback: "stale_data"`
-  - `route_response.cacheHit: true`
-- Empty fallback rule: when no cache exists, set `route_response.sourceFallback: "none"` and fail fast with the normalized error state.
-- Confidence rule for stale responses: mark low confidence and expose `query.needsClarification` only when ambiguity remains.
+- Source failure behavior: return error responses when no cache is available and avoid fabricating values.
+- Stale fallback behavior: if cache exists and age is within policy threshold, respond from cache and tag:
+  - `sourceFallback: "stale_data"`
+  - `cacheHit: true`
+  - `resultCount` from cached payload length
+- No-data fallback behavior: when cache miss or expired and source fails, set:
+  - `sourceFallback: "none"`
+  - `cacheHit: false`
+  - normalized error response state
+- Confidence policy: stale results are flagged as low confidence when ambiguous slots remain and should be surfaced in UI/response metadata.
