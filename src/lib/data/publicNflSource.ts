@@ -588,7 +588,7 @@ export class PublicNflSource implements IDataSource {
           response = await this.safeRequest(url.toString());
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
-        if (error instanceof NflSourceError) {
+          if (error instanceof NflSourceError) {
             await logEvent({
               requestId,
               eventType: "source",

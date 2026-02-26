@@ -55,7 +55,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Write 30–50 NL examples with expected intent/slots.
 - [ ] Mark easy/medium/hard + failure cases.
 - [X] Define logging fields (query, intent, confidence, latency, cache hit, source).
-- [ ] Define stale-data and fallback behavior when source fails.
+- [X] Define stale-data and fallback behavior when source fails.
 
 ### Day 10: Workflow protocol
 - [ ] Define daily workflow: one-task scope, one-to-two files max, one success check.
