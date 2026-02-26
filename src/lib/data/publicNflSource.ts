@@ -588,9 +588,10 @@ export class PublicNflSource implements IDataSource {
           response = await this.safeRequest(url.toString());
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
-          if (error instanceof NflSourceError) {
+        if (error instanceof NflSourceError) {
             await logEvent({
               requestId,
+              eventType: "source",
               source: "balldontlie",
               method: "GET",
               route,
@@ -607,6 +608,7 @@ export class PublicNflSource implements IDataSource {
 
           await logEvent({
             requestId,
+            eventType: "source",
             source: "balldontlie",
             method: "GET",
             route,
@@ -625,6 +627,7 @@ export class PublicNflSource implements IDataSource {
           const latencyMs = Date.now() - startedAt;
           await logEvent({
             requestId,
+            eventType: "source",
             source: "balldontlie",
             method: "GET",
             route,
@@ -652,6 +655,7 @@ export class PublicNflSource implements IDataSource {
           const message = `Rate-limited for ${path}. Retrying in ${retryDelay / 1000}s (${tries}/${maxRetries}).`;
           await logEvent({
             requestId,
+            eventType: "source",
             source: "balldontlie",
             method: "GET",
             route,
@@ -672,6 +676,7 @@ export class PublicNflSource implements IDataSource {
         if (response.status !== 429 && tries > 0) {
           await logEvent({
             requestId,
+            eventType: "source",
             source: "balldontlie",
             method: "GET",
             route,
@@ -702,6 +707,7 @@ export class PublicNflSource implements IDataSource {
         );
         await logEvent({
           requestId,
+          eventType: "source",
           source: "balldontlie",
           method: "GET",
           route,

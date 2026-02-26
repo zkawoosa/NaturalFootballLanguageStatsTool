@@ -1,11 +1,29 @@
-export type LogLevel = "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
-export type SourceLogEvent = {
-  ts: string;
+export type LogEventType = "query" | "source" | "route_response";
+
+type RuntimeLogEventBase = {
+  eventType: LogEventType;
+  ts?: string;
   level: LogLevel;
   requestId: string;
   source: string;
   route: string;
+};
+
+export type QueryLogEvent = RuntimeLogEventBase & {
+  eventType: "query";
+  query: string;
+  intent: string;
+  slots?: Record<string, unknown>;
+  confidence?: number;
+  cacheHit?: boolean;
+  resultCount?: number;
+  needsClarification?: boolean;
+};
+
+export type SourceLogEvent = RuntimeLogEventBase & {
+  eventType: "source";
   method: string;
   status?: number;
   ok?: boolean;
@@ -20,6 +38,17 @@ export type SourceLogEvent = {
   seasonType?: string;
   responseSizeBytes?: number;
 };
+
+export type RouteResponseLogEvent = RuntimeLogEventBase & {
+  eventType: "route_response";
+  status: number;
+  latencyMs?: number;
+  cacheHit?: boolean;
+  sourceFallback?: string;
+  resultCount?: number;
+};
+
+export type RuntimeLogEvent = QueryLogEvent | SourceLogEvent | RouteResponseLogEvent;
 
 const LOG_FILE_PATH = "data/logs/source-runtime.ndjson";
 
@@ -42,12 +71,13 @@ async function appendToFile(line: string) {
   await fs.appendFile(LOG_FILE_PATH, `${line}\n`, { encoding: "utf8" });
 }
 
-function formatConsoleLine(event: SourceLogEvent, line: string) {
-  const prefix = `[${event.level.toUpperCase()}] ${event.requestId} ${event.source} ${event.method} ${event.route}`;
+function formatConsoleLine(event: RuntimeLogEvent, line: string) {
+  const verb = event.eventType === "source" ? event.method : event.eventType;
+  const prefix = `[${event.level.toUpperCase()}] ${event.requestId} ${event.source} ${verb} ${event.route}`;
   return `${prefix} ${line}`;
 }
 
-export async function logEvent(event: SourceLogEvent): Promise<void> {
+export async function logEvent(event: RuntimeLogEvent): Promise<void> {
   if (isTestLoggingSuppressed()) {
     return;
   }
@@ -86,6 +116,7 @@ export function createLogEvent(
   method: string
 ): Omit<SourceLogEvent, "requestId" | "ts" | "level"> {
   return {
+    eventType: "source",
     route,
     method,
     source: "balldontlie",

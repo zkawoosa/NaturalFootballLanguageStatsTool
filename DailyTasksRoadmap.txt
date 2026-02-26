@@ -54,7 +54,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Day 9: Reliability plan
 - [ ] Write 30–50 NL examples with expected intent/slots.
 - [ ] Mark easy/medium/hard + failure cases.
-- [ ] Define logging fields (query, intent, confidence, latency, cache hit, source).
+- [X] Define logging fields (query, intent, confidence, latency, cache hit, source).
 - [ ] Define stale-data and fallback behavior when source fails.
 
 ### Day 10: Workflow protocol

@@ -6,6 +6,7 @@ import { createLogEvent } from "./logger.ts";
 test("logger utils: build a valid source log payload shape", () => {
   const event = createLogEvent("/teams", "GET");
 
+  assert.equal(event.eventType, "source");
   assert.equal(event.route, "/teams");
   assert.equal(event.method, "GET");
   assert.equal(event.source, "balldontlie");
