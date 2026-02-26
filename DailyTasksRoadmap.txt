@@ -51,13 +51,13 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Design UI response states: success/loading/error/empty/clarification.
 - [X] Document route index.
 
-### Day 9: Reliability plan
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
+### Day 9: Reliability plan [X]
 - [X] Define logging fields (query, intent, confidence, latency, cache hit, source).
 - [X] Define stale-data and fallback behavior when source fails.
 
 ### Day 10: Workflow protocol
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
 - [ ] Define daily workflow: one-task scope, one-to-two files max, one success check.
 - [ ] Freeze task list for Day 11 and begin.
 
