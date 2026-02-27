@@ -56,15 +56,20 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Define stale-data and fallback behavior when source fails.
 
 ### Day 10: Workflow protocol
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
-- [ ] Define daily workflow: one-task scope, one-to-two files max, one success check.
-- [ ] Freeze task list for Day 11 and begin.
+- [X] Scaffold Next.js + TypeScript.
+- [ ] Add folders/contracts from the spec and env config only.
+- [X] Define daily workflow: one-task scope, one-to-two files max, one success check.
+- Daily workflow (1 hour/day):
+- Pick one scoped task with a clear done condition before coding.
+- Touch at most two files.
+- Run exactly one primary success check for that task.
+- If blocked for more than 15 minutes, capture blocker + next action and stop.
 
 ### Day 11–12: Repo + contracts in code
-- [ ] Scaffold Next.js + TypeScript.
-- [ ] Add folders/contracts from the spec and env config only.
 - [ ] Add `IDataSource` and app shell.
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
+- Day 12 gate: complete both sample tasks before starting Day 15 parser implementation.
 
 ### Day 13–14: Public source adapter
 - [ ] Implement public-data adapter + normalization pipeline.

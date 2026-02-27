@@ -11,18 +11,29 @@
   "scripts": {
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:quiet": "NFL_QUERY_TEST_QUIET_LOGS=1 node --test --experimental-strip-types \"src/**/*.test.ts\"",
-    "dev": "node --test --watch --experimental-strip-types \"src/**/*.test.ts\"",
-    "build": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix",
-    "format": "prettier --check \"src/**/*.ts\" \"*.md\"",
-    "format:write": "prettier --write \"src/**/*.ts\" \"*.md\""
+    "test:watch": "node --test --watch --experimental-strip-types \"src/**/*.test.ts\"",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.md\"",
+    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.md\""
   },
   "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^10.1.8",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }
