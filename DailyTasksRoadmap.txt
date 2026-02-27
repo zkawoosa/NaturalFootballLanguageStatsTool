@@ -57,7 +57,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Day 10: Workflow protocol
 - [X] Scaffold Next.js + TypeScript.
-- [ ] Add folders/contracts from the spec and env config only.
+- [X] Add folders/contracts from the spec and env config only.
 - [X] Define daily workflow: one-task scope, one-to-two files max, one success check.
 - Daily workflow (1 hour/day):
 - Pick one scoped task with a clear done condition before coding.

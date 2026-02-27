@@ -1,5 +1,7 @@
+import { loadRuntimeEnv } from "./env/runtime.ts";
+
 export const getBalldontlieApiKey = (): string => {
-  const apiKey = process.env.BL_API_KEY;
+  const { balldontlieApiKey: apiKey } = loadRuntimeEnv();
 
   if (!apiKey || apiKey.trim().length === 0) {
     throw new Error("BL_API_KEY is missing. Add BL_API_KEY to /Users/zainkawoosa/nfl-query/.env");
@@ -7,3 +9,5 @@ export const getBalldontlieApiKey = (): string => {
 
   return apiKey;
 };
+
+export const getRuntimeConfig = () => loadRuntimeEnv();
