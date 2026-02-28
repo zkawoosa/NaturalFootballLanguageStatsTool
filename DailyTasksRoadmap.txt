@@ -67,13 +67,13 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Day 11–12: Repo + contracts in code
 - [X] Add `IDataSource` and app shell.
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
-- Day 12 gate: complete both sample tasks before starting Day 15 parser implementation.
+- [ ] Implement public-data adapter + normalization pipeline.
+- [X] Add basic cache and status endpoint.
+- Edge case note: source health probes bypass cache to avoid reporting stale "healthy" status.
 
 ### Day 13–14: Public source adapter
-- [ ] Implement public-data adapter + normalization pipeline.
-- [ ] Add basic cache and status endpoint.
+- [ ] Write 30–50 NL examples with expected intent/slots.
+- [ ] Mark easy/medium/hard + failure cases.
 
 ### Day 15–17: Query parser v1
 - [ ] Implement intent/slot extraction + alias resolution.

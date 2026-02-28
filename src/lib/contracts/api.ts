@@ -79,10 +79,21 @@ export type PlayersResponse = {
   error?: string;
 };
 
+export type CacheStatus = {
+  enabled: boolean;
+  ttlSeconds: number;
+  entries: number;
+  hits: number;
+  misses: number;
+  lastHitAt: string | null;
+  lastMissAt: string | null;
+};
+
 export type StatusResponse = {
   source: "balldontlie";
   healthy: boolean;
   latencyMs: number | null;
   checkedAt: string;
+  cache?: CacheStatus;
   error?: string;
 };

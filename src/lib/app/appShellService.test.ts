@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getAppShellViewModel, getSourceHealth } from "./appShellService.ts";
+import type { CacheStatus } from "../contracts/api.ts";
 import type { IDataSource } from "../data/publicNflSource.ts";
 
-function createFakeSource(overrides: Partial<IDataSource> = {}): IDataSource {
+type FakeSource = IDataSource & {
+  getCacheStats?: () => CacheStatus;
+};
+
+function createFakeSource(overrides: Partial<FakeSource> = {}): FakeSource {
   return {
     getTeams: async () => [],
     getPlayers: async () => [],
@@ -49,4 +54,24 @@ test("app shell view model provides status and sample prompts", async () => {
   assert.equal(viewModel.status.source, "balldontlie");
   assert.equal(Array.isArray(viewModel.samplePrompts), true);
   assert.equal(viewModel.samplePrompts.length > 0, true);
+});
+
+test("app shell service includes cache status when available", async () => {
+  const source = createFakeSource({
+    getCacheStats: () => ({
+      enabled: true,
+      ttlSeconds: 300,
+      entries: 2,
+      hits: 4,
+      misses: 1,
+      lastHitAt: "2026-02-28T00:00:00.000Z",
+      lastMissAt: "2026-02-28T00:00:01.000Z",
+    }),
+  });
+
+  const status = await getSourceHealth(source);
+
+  assert.equal(status.cache?.enabled, true);
+  assert.equal(status.cache?.hits, 4);
+  assert.equal(status.cache?.misses, 1);
 });

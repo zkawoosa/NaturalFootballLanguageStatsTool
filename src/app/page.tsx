@@ -18,6 +18,13 @@ export default async function HomePage() {
         </p>
         <p>Checked at: {new Date(viewModel.status.checkedAt).toLocaleString()}</p>
         <p>Latency: {viewModel.status.latencyMs ?? "n/a"} ms</p>
+        {viewModel.status.cache ? (
+          <p>
+            Cache: {viewModel.status.cache.enabled ? "enabled" : "disabled"} | ttl{" "}
+            {viewModel.status.cache.ttlSeconds}s | hits {viewModel.status.cache.hits} | misses{" "}
+            {viewModel.status.cache.misses}
+          </p>
+        ) : null}
         {viewModel.status.error ? <p>Error: {viewModel.status.error}</p> : null}
       </section>
 
