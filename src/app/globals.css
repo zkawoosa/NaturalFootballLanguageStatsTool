@@ -14,11 +14,55 @@ body {
 }
 
 .container {
-  max-width: 720px;
+  max-width: 860px;
   margin: 0 auto;
-  padding: 48px 20px;
+  padding: 40px 20px 60px;
 }
 
 h1 {
   margin: 0 0 8px;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #d5dbe5;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.query-form {
+  display: grid;
+  gap: 8px;
+}
+
+.query-form input {
+  border: 1px solid #b5bfce;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.query-form button {
+  width: fit-content;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #1f2f49;
+  color: #ffffff;
+  font: inherit;
+}
+
+.status-ok {
+  color: #166534;
+  font-weight: 700;
+}
+
+.status-bad {
+  color: #991b1b;
+  font-weight: 700;
 }

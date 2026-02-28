@@ -66,7 +66,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - If blocked for more than 15 minutes, capture blocker + next action and stop.
 
 ### Day 11–12: Repo + contracts in code
-- [ ] Add `IDataSource` and app shell.
+- [X] Add `IDataSource` and app shell.
 - [ ] Write 30–50 NL examples with expected intent/slots.
 - [ ] Mark easy/medium/hard + failure cases.
 - Day 12 gate: complete both sample tasks before starting Day 15 parser implementation.
