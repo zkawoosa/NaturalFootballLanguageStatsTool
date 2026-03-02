@@ -72,8 +72,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - Edge case note: source health probes bypass cache to avoid reporting stale "healthy" status.
 
 ### Day 13–14: Public source adapter
-- [ ] Write 30–50 NL examples with expected intent/slots.
-- [ ] Mark easy/medium/hard + failure cases.
+- [X] Write 30–50 NL examples with expected intent/slots.
+- [X] Mark easy/medium/hard + failure cases.
 
 ### Day 15–17: Query parser v1
 - [ ] Implement intent/slot extraction + alias resolution.
