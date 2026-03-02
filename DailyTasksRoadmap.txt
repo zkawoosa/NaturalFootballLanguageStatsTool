@@ -67,7 +67,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Day 11–12: Repo + contracts in code
 - [X] Add `IDataSource` and app shell.
-- [ ] Implement public-data adapter + normalization pipeline.
+- [X] Implement public-data adapter + normalization pipeline.
 - [X] Add basic cache and status endpoint.
 - Edge case note: source health probes bypass cache to avoid reporting stale "healthy" status.
 
