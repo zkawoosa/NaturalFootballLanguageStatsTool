@@ -76,8 +76,14 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Mark easy/medium/hard + failure cases.
 
 ### Day 15–17: Query parser v1
-- [ ] Implement intent/slot extraction + alias resolution.
+- [X] Implement intent/slot extraction + alias resolution.
 - [ ] Add low-confidence and ambiguity responses.
+
+### Tomorrow (next session): Residual-risk mitigation
+- [ ] Add telemetry logging for unmatched alias tokens.
+- [ ] Add telemetry logging for unknown comparator phrases.
+- [ ] Expand comparator lexicon mapping and add parser regression tests.
+- [ ] Expand alias coverage with normalized team/player lookup entries and add regression tests.
 
 ### Day 18–20: Query API route
 - [ ] Implement `POST /api/query`.
@@ -106,3 +112,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] What broke
 - [ ] What to defer
 - [ ] Next 3 priorities
+
+## Residual Risks (living section)
+- Last updated: 2026-03-03
+- [ ] Alias coverage is still dictionary-based, so uncommon nicknames/spellings may not resolve.
+  - Next mitigation: add unmatched-alias telemetry and broaden normalized alias coverage.
+- [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
+  - Next mitigation: expand comparator lexicon and add phrase-level regression tests.

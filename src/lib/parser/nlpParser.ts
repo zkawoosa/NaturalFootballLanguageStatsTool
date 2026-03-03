@@ -11,8 +11,12 @@ export type NflIntent =
 export type QuerySlot = {
   teams: string[];
   players: string[];
+  scopeType: "week" | "season" | null;
   week?: number;
   season?: number;
+  seasonType: "REG" | "POST" | "PREGAME" | "OFFSEASON";
+  sort: "asc" | "desc" | null;
+  limit: number | null;
   stat?: string | null;
   raw: string;
 };
@@ -34,7 +38,11 @@ export type ParsedQuery = {
 
 const WEEK_RE = /\b(?:week|wk)\s+(\d{1,2})\b/i;
 const SEASON_RE = /\b(?:season|year)\s+(\d{4})\b/i;
+const STANDALONE_YEAR_RE = /\b(19\d{2}|20\d{2})\b/;
 const THIS_WEEK_RE = /\bthis\s+week\b/i;
+const THIS_SEASON_RE = /\bthis\s+season\b/i;
+const LAST_YEAR_RE = /\blast\s+year\b/i;
+const LIMIT_RE = /\b(?:top|best)\s+(\d{1,2})\b/i;
 
 export function parseNflQuery(input: string): ParsedQuery {
   const raw = input.trim();
@@ -43,6 +51,10 @@ export function parseNflQuery(input: string): ParsedQuery {
   const slots: QuerySlot = {
     teams: [],
     players: [],
+    scopeType: null,
+    seasonType: resolveSeasonType(normalized),
+    sort: resolveSort(normalized),
+    limit: resolveLimit(normalized),
     stat: null,
     raw,
   };
@@ -51,6 +63,7 @@ export function parseNflQuery(input: string): ParsedQuery {
 
   const weekMatch = normalized.match(WEEK_RE);
   const seasonMatch = normalized.match(SEASON_RE);
+  const standaloneYearMatch = normalized.match(STANDALONE_YEAR_RE);
   if (THIS_WEEK_RE.test(normalized) && !weekMatch) {
     slots.week = getCurrentWeek();
   }
@@ -60,6 +73,13 @@ export function parseNflQuery(input: string): ParsedQuery {
   }
   if (seasonMatch) {
     const season = parseInt(seasonMatch[1], 10);
+    if (Number.isFinite(season)) slots.season = season;
+  } else if (LAST_YEAR_RE.test(normalized)) {
+    slots.season = getCurrentSeason() - 1;
+  } else if (THIS_SEASON_RE.test(normalized)) {
+    slots.season = getCurrentSeason();
+  } else if (standaloneYearMatch) {
+    const season = parseInt(standaloneYearMatch[1], 10);
     if (Number.isFinite(season)) slots.season = season;
   }
 
@@ -93,6 +113,7 @@ export function parseNflQuery(input: string): ParsedQuery {
 
   const stat = mapStatAlias(normalized);
   if (stat) slots.stat = stat;
+  slots.scopeType = resolveScopeType(normalized, slots);
 
   const intent = detectIntent(normalized, slots);
   const requiresClarification = ambiguities.length > 0;
@@ -129,9 +150,26 @@ function collectEntities(value: string, lookup: (candidate: string) => string[])
   const results: ResolvedAlias[] = [];
   const seenCanonical = new Set<string>();
   const seenAmbiguous = new Set<string>();
+  const claimedWordIndexes = new Set<number>();
+
+  function isSpanClaimed(start: number, endExclusive: number): boolean {
+    for (let index = start; index < endExclusive; index += 1) {
+      if (claimedWordIndexes.has(index)) return true;
+    }
+    return false;
+  }
+
+  function claimSpan(start: number, endExclusive: number): void {
+    for (let index = start; index < endExclusive; index += 1) {
+      claimedWordIndexes.add(index);
+    }
+  }
 
   for (let windowSize = 3; windowSize >= 1; windowSize -= 1) {
     for (let start = 0; start + windowSize <= words.length; start += 1) {
+      const endExclusive = start + windowSize;
+      if (isSpanClaimed(start, endExclusive)) continue;
+
       const token = words.slice(start, start + windowSize).join(" ");
       if (token.length < 2) continue;
 
@@ -149,6 +187,7 @@ function collectEntities(value: string, lookup: (candidate: string) => string[])
           });
           seenCanonical.add(canonical);
         }
+        claimSpan(start, endExclusive);
         continue;
       }
 
@@ -172,7 +211,22 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "compare";
   }
 
+  if (/\bweekly\b/.test(value) || /\bsummary\b/.test(value)) {
+    return "weekly_summary";
+  }
+
   if (/\bleaders\b/.test(value) || /\bleaderboard\b/.test(value) || /\btop\s+\d*/.test(value)) {
+    return "leaders";
+  }
+
+  if (
+    /\bmost\b/.test(value) ||
+    /\bhighest\b/.test(value) ||
+    /\blowest\b/.test(value) ||
+    /\bworst\b/.test(value) ||
+    /\bfewest\b/.test(value) ||
+    /\bleast\b/.test(value)
+  ) {
     return "leaders";
   }
 
@@ -192,6 +246,9 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
   if (/\bweekly\b/.test(value) || /\bweek\b/.test(value) || /\bsummary\b/.test(value)) {
     return "weekly_summary";
   }
+  if (slots.stat && (slots.scopeType === "week" || slots.scopeType === "season")) {
+    return "leaders";
+  }
 
   return "unknown";
 }
@@ -204,10 +261,12 @@ function estimateConfidence(
 ): number {
   if (intent === "unknown") return 0.35;
 
-  let confidence = 0.8;
+  let confidence = 0.78;
   if (slots.stat) confidence += 0.05;
-  if (slots.week || slots.season) confidence += 0.05;
+  if (slots.scopeType) confidence += 0.04;
+  if (slots.week || slots.season) confidence += 0.04;
   if (slots.teams.length + slots.players.length > 1) confidence += 0.05;
+  if (slots.sort || slots.limit) confidence += 0.03;
 
   if (requiresClarification) {
     confidence -= Math.min(0.5, ambiguities.length * 0.15);
@@ -234,4 +293,49 @@ function getCurrentWeek(): number {
 
   if (Number.isNaN(rawWeek)) return 1;
   return Math.max(1, Math.min(18, rawWeek));
+}
+
+function getCurrentSeason(): number {
+  const now = new Date();
+  return now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
+function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | null {
+  if (slots.week !== undefined) return "week";
+  if (slots.season !== undefined) return "season";
+  if (/\bweek\b/.test(value)) return "week";
+  if (/\bseason\b/.test(value) || /\byear\b/.test(value)) return "season";
+  return null;
+}
+
+function resolveSort(value: string): "asc" | "desc" | null {
+  if (
+    /\bworst\b/.test(value) ||
+    /\blowest\b/.test(value) ||
+    /\bleast\b/.test(value) ||
+    /\bfewest\b/.test(value)
+  ) {
+    return "asc";
+  }
+  if (/\btop\b/.test(value) || /\bmost\b/.test(value) || /\bhighest\b/.test(value)) {
+    return "desc";
+  }
+  return null;
+}
+
+function resolveLimit(value: string): number | null {
+  const match = value.match(LIMIT_RE);
+  if (!match) return null;
+  const parsed = parseInt(match[1], 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function resolveSeasonType(
+  value: string
+): "REG" | "POST" | "PREGAME" | "OFFSEASON" {
+  if (/\bpostseason\b/.test(value) || /\bplayoffs?\b/.test(value)) return "POST";
+  if (/\bpreseason\b/.test(value) || /\bpregame\b/.test(value)) return "PREGAME";
+  if (/\boffseason\b/.test(value)) return "OFFSEASON";
+  return "REG";
 }
