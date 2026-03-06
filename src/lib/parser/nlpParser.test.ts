@@ -13,6 +13,9 @@ test("parses a team stat intent with week and team alias", () => {
   assert.equal(result.slots.week, 5);
   assert.equal(result.slots.season, 2024);
   assert.equal(result.slots.seasonType, "REG");
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.requiresClarification, false);
+  assert.equal(result.clarification, null);
 });
 
 test("parses player-focused stat query with player alias", () => {
@@ -27,8 +30,10 @@ test("parses player-focused stat query with player alias", () => {
   assert.equal(typeof result.slots.week, "number");
   assert.equal(result.slots.week && result.slots.week >= 1, true);
   assert.equal(result.slots.week && result.slots.week <= 18, true);
+  assert.equal(result.resolution, "answer");
   assert.equal(result.requiresClarification, false);
   assert.equal(result.ambiguities.length, 0);
+  assert.equal(result.clarification, null);
 });
 
 test("parses compare intent with multiple teams", () => {
@@ -39,16 +44,21 @@ test("parses compare intent with multiple teams", () => {
   assert.equal(result.slots.teams.includes("BAL"), true);
   assert.equal(result.slots.scopeType, "season");
   assert.equal(result.confidence >= 0.78, true);
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
 });
 
 test("returns ambiguity when a team alias is mapped to multiple teams", () => {
   const result = parseNflQuery("team stats for united this week");
 
   assert.equal(result.requiresClarification, true);
+  assert.equal(result.resolution, "clarify");
   assert.equal(result.ambiguities.length, 1);
   assert.equal(result.ambiguities[0].slot, "team");
   assert.equal(result.ambiguities[0].candidates.includes("DAL"), true);
   assert.equal(result.ambiguities[0].candidates.includes("LAR"), true);
+  assert.equal(result.clarification?.reason, "ambiguous_entity");
+  assert.equal(result.clarification?.slot, "team");
 });
 
 test("extracts sort and limit for leaderboard phrasing", () => {
@@ -60,6 +70,10 @@ test("extracts sort and limit for leaderboard phrasing", () => {
   assert.equal(result.slots.limit, 5);
   assert.equal(result.slots.scopeType, "week");
   assert.equal(result.slots.week, 7);
+  assert.equal(result.telemetry.matchedComparatorCue, "top");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
 });
 
 test("maps fewest phrasing to ascending leaderboard sort", () => {
@@ -69,6 +83,21 @@ test("maps fewest phrasing to ascending leaderboard sort", () => {
   assert.equal(result.slots.stat, "penalties");
   assert.equal(result.slots.scopeType, "season");
   assert.equal(result.slots.sort, "asc");
+  assert.equal(result.telemetry.matchedComparatorCue, "fewest");
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
+});
+
+test("maps bottom phrasing with numeric limit to ascending sort", () => {
+  const result = parseNflQuery("Bottom 3 penalties this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "penalties");
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(result.slots.sort, "asc");
+  assert.equal(result.slots.limit, 3);
+  assert.equal(result.telemetry.matchedComparatorCue, "bottom");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
 });
 
 test("extracts standalone season year and asc sort from worst query phrasing", () => {
@@ -79,6 +108,8 @@ test("extracts standalone season year and asc sort from worst query phrasing", (
   assert.equal(result.slots.scopeType, "season");
   assert.equal(result.slots.sort, "asc");
   assert.equal(result.slots.season, 2023);
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
 });
 
 test("parses postseason season type", () => {
@@ -89,4 +120,46 @@ test("parses postseason season type", () => {
   assert.equal(result.slots.seasonType, "POST");
   assert.equal(result.slots.scopeType, "week");
   assert.equal(result.slots.week, 2);
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
+});
+
+test("captures unknown comparator telemetry cue when comparator is unrecognized", () => {
+  const result = parseNflQuery("Leading passing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.equal(result.slots.sort, null);
+  assert.equal(result.telemetry.unknownComparatorCue, "leading");
+  assert.equal(result.telemetry.matchedComparatorCue, null);
+});
+
+test("captures unmatched alias telemetry tokens", () => {
+  const result = parseNflQuery("Compare dragons and Ravens this season");
+
+  assert.equal(result.intent, "compare");
+  assert.equal(result.telemetry.unmatchedAliasTokens.includes("dragons"), true);
+  assert.equal(result.requiresClarification, true);
+  assert.equal(result.clarification?.reason, "missing_context");
+});
+
+test("clarifies when leaderboard query is missing stat context", () => {
+  const result = parseNflQuery("Top teams this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, null);
+  assert.equal(result.requiresClarification, true);
+  assert.equal(result.resolution, "clarify");
+  assert.equal(result.clarification?.reason, "missing_context");
+  assert.equal(result.clarification?.slot, "stat");
+});
+
+test("rejects very low confidence unknown query", () => {
+  const result = parseNflQuery("can you tell me stuff");
+
+  assert.equal(result.intent, "unknown");
+  assert.equal(result.confidence < 0.45, true);
+  assert.equal(result.resolution, "reject");
+  assert.equal(result.requiresClarification, false);
+  assert.equal(result.clarification, null);
 });

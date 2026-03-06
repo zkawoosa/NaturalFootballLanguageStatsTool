@@ -77,12 +77,15 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Day 15–17: Query parser v1
 - [X] Implement intent/slot extraction + alias resolution.
-- [ ] Add low-confidence and ambiguity responses.
+- [X] Add low-confidence and ambiguity responses.
+- [X] Define clarification payload contract (`reason`, `prompt`, `slot`, `candidates`, `confidence`).
+- [X] Set confidence thresholds for `answer` vs `clarify` vs `reject`.
+- [X] Add parser regression tests for ambiguity and low-confidence flows.
 
 ### Tomorrow (next session): Residual-risk mitigation
-- [ ] Add telemetry logging for unmatched alias tokens.
-- [ ] Add telemetry logging for unknown comparator phrases.
-- [ ] Expand comparator lexicon mapping and add parser regression tests.
+- [X] Add telemetry logging for unmatched alias tokens.
+- [X] Add telemetry logging for unknown comparator phrases.
+- [X] Expand comparator lexicon mapping and add parser regression tests.
 - [ ] Expand alias coverage with normalized team/player lookup entries and add regression tests.
 
 ### Day 18–20: Query API route

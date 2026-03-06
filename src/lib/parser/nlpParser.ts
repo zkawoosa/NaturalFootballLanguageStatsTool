@@ -1,4 +1,5 @@
 import { mapPlayerAlias, mapStatAlias, mapTeamAlias, STOP_WORDS } from "./aliasDictionary.ts";
+import { createRequestId, logEvent } from "../logger.ts";
 
 export type NflIntent =
   | "leaders"
@@ -33,7 +34,43 @@ export type ParsedQuery = {
   slots: QuerySlot;
   ambiguities: ParsedAmbiguity[];
   normalized: string;
+  telemetry: ParserTelemetry;
+  resolution: QueryResolution;
   requiresClarification: boolean;
+  clarification: ClarificationPayload | null;
+};
+
+export type QueryResolution = "answer" | "clarify" | "reject";
+
+export type ClarificationSlot = "team" | "player" | "stat" | "scope" | "intent";
+
+export type ClarificationReason = "ambiguous_entity" | "missing_context" | "low_confidence";
+
+export type ClarificationPayload = {
+  reason: ClarificationReason;
+  prompt: string;
+  slot: ClarificationSlot;
+  candidates?: string[];
+  confidence: number;
+};
+
+export type ParserTelemetry = {
+  unmatchedAliasTokens: string[];
+  unknownComparatorCue: string | null;
+  matchedComparatorCue: string | null;
+};
+
+type ComparatorDirection = "asc" | "desc";
+
+type ComparatorLexiconEntry = {
+  cue: string;
+  direction: ComparatorDirection;
+};
+
+type ComparatorResolution = {
+  sort: ComparatorDirection | null;
+  matchedCue: string | null;
+  unknownCue: string | null;
 };
 
 const WEEK_RE = /\b(?:week|wk)\s+(\d{1,2})\b/i;
@@ -42,18 +79,97 @@ const STANDALONE_YEAR_RE = /\b(19\d{2}|20\d{2})\b/;
 const THIS_WEEK_RE = /\bthis\s+week\b/i;
 const THIS_SEASON_RE = /\bthis\s+season\b/i;
 const LAST_YEAR_RE = /\blast\s+year\b/i;
-const LIMIT_RE = /\b(?:top|best)\s+(\d{1,2})\b/i;
+const LIMIT_RE = /\b(?:top|best|most|highest|lowest|worst|fewest|least|bottom)\s+(\d{1,2})\b/i;
+const ANSWER_CONFIDENCE_MIN = 0.65;
+const CLARIFY_CONFIDENCE_MIN = 0.45;
+const PARSER_ROUTE = "parser:nlp";
+const PARSER_SOURCE = "parser";
+
+const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
+  { cue: "worst", direction: "asc" },
+  { cue: "lowest", direction: "asc" },
+  { cue: "least", direction: "asc" },
+  { cue: "fewest", direction: "asc" },
+  { cue: "bottom", direction: "asc" },
+  { cue: "smallest", direction: "asc" },
+  { cue: "top", direction: "desc" },
+  { cue: "most", direction: "desc" },
+  { cue: "highest", direction: "desc" },
+  { cue: "best", direction: "desc" },
+  { cue: "biggest", direction: "desc" },
+];
+
+const UNKNOWN_COMPARATOR_CUES = [
+  "leading",
+  "trailing",
+  "ordered by",
+  "sort by",
+  "ranked by",
+  "ranking by",
+];
+
+const NON_ALIAS_QUERY_TERMS = new Set([
+  "team",
+  "teams",
+  "player",
+  "players",
+  "stat",
+  "stats",
+  "week",
+  "season",
+  "year",
+  "leaders",
+  "leaderboard",
+  "compare",
+  "summary",
+  "weekly",
+  "top",
+  "best",
+  "most",
+  "highest",
+  "lowest",
+  "worst",
+  "fewest",
+  "least",
+  "bottom",
+  "smallest",
+  "biggest",
+  "passing",
+  "rushing",
+  "receiving",
+  "offense",
+  "defense",
+  "yards",
+  "touchdowns",
+  "td",
+  "penalties",
+  "sacks",
+  "interceptions",
+  "fumbles",
+  "playoffs",
+  "postseason",
+  "preseason",
+  "offseason",
+  "rank",
+  "ranking",
+  "ordered",
+  "sort",
+  "by",
+]);
 
 export function parseNflQuery(input: string): ParsedQuery {
   const raw = input.trim();
   const normalized = normalizeQuery(raw);
+  const requestId = createRequestId();
+  const words = tokenizeEntityWords(normalized);
+  const comparator = resolveComparator(normalized);
 
   const slots: QuerySlot = {
     teams: [],
     players: [],
     scopeType: null,
     seasonType: resolveSeasonType(normalized),
-    sort: resolveSort(normalized),
+    sort: comparator.sort,
     limit: resolveLimit(normalized),
     stat: null,
     raw,
@@ -83,7 +199,8 @@ export function parseNflQuery(input: string): ParsedQuery {
     if (Number.isFinite(season)) slots.season = season;
   }
 
-  collectEntities(normalized, mapTeamAlias).forEach((resolved) => {
+  const teamEntities = collectEntities(words, mapTeamAlias);
+  teamEntities.forEach((resolved) => {
     if (resolved.ambiguous) {
       ambiguities.push({
         slot: "team",
@@ -97,7 +214,8 @@ export function parseNflQuery(input: string): ParsedQuery {
     }
   });
 
-  collectEntities(normalized, mapPlayerAlias).forEach((resolved) => {
+  const playerEntities = collectEntities(words, mapPlayerAlias);
+  playerEntities.forEach((resolved) => {
     if (resolved.ambiguous) {
       ambiguities.push({
         slot: "player",
@@ -111,13 +229,53 @@ export function parseNflQuery(input: string): ParsedQuery {
     }
   });
 
+  const unmatchedAliasTokens = collectUnmatchedAliasTokens(words, teamEntities, playerEntities);
+  const telemetry: ParserTelemetry = {
+    unmatchedAliasTokens,
+    unknownComparatorCue: comparator.unknownCue,
+    matchedComparatorCue: comparator.matchedCue,
+  };
+
   const stat = mapStatAlias(normalized);
   if (stat) slots.stat = stat;
   slots.scopeType = resolveScopeType(normalized, slots);
 
   const intent = detectIntent(normalized, slots);
-  const requiresClarification = ambiguities.length > 0;
-  const confidence = estimateConfidence(intent, slots, requiresClarification, ambiguities);
+  const confidence = estimateConfidence(intent, slots, ambiguities.length > 0, ambiguities);
+  const clarification = buildClarification(intent, slots, ambiguities, confidence);
+  const resolution = resolveResolution(confidence, clarification);
+  const requiresClarification = resolution === "clarify";
+  if (
+    telemetry.unmatchedAliasTokens.length > 0 &&
+    shouldTrackUnmatchedAliasTokens(intent, normalized)
+  ) {
+    emitParserTelemetry(
+      requestId,
+      raw,
+      intent,
+      confidence,
+      slots,
+      requiresClarification,
+      "unmatched_alias_tokens",
+      {
+        unmatchedAliasTokens: telemetry.unmatchedAliasTokens,
+      }
+    );
+  }
+  if (telemetry.unknownComparatorCue) {
+    emitParserTelemetry(
+      requestId,
+      raw,
+      intent,
+      confidence,
+      slots,
+      requiresClarification,
+      "unknown_comparator_cue",
+      {
+        unknownComparatorCue: telemetry.unknownComparatorCue,
+      }
+    );
+  }
 
   return {
     intent,
@@ -125,7 +283,10 @@ export function parseNflQuery(input: string): ParsedQuery {
     slots,
     ambiguities,
     normalized,
+    telemetry,
+    resolution,
     requiresClarification,
+    clarification,
   };
 }
 
@@ -143,10 +304,11 @@ type ResolvedAlias = {
   token: string;
   ambiguous: boolean;
   candidates: string[];
+  startIndex: number;
+  endExclusive: number;
 };
 
-function collectEntities(value: string, lookup: (candidate: string) => string[]): ResolvedAlias[] {
-  const words = value.split(" ").filter((word) => word.length > 0 && !STOP_WORDS.has(word));
+function collectEntities(words: string[], lookup: (candidate: string) => string[]): ResolvedAlias[] {
   const results: ResolvedAlias[] = [];
   const seenCanonical = new Set<string>();
   const seenAmbiguous = new Set<string>();
@@ -184,6 +346,8 @@ function collectEntities(value: string, lookup: (candidate: string) => string[])
             token,
             ambiguous: false,
             candidates: [canonical],
+            startIndex: start,
+            endExclusive,
           });
           seenCanonical.add(canonical);
         }
@@ -197,6 +361,8 @@ function collectEntities(value: string, lookup: (candidate: string) => string[])
           token,
           ambiguous: true,
           candidates,
+          startIndex: start,
+          endExclusive,
         });
         seenAmbiguous.add(token);
       }
@@ -253,6 +419,192 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
   return "unknown";
 }
 
+function tokenizeEntityWords(value: string): string[] {
+  return value.split(" ").filter((word) => word.length > 0 && !STOP_WORDS.has(word));
+}
+
+function collectUnmatchedAliasTokens(
+  words: string[],
+  teamEntities: ResolvedAlias[],
+  playerEntities: ResolvedAlias[]
+): string[] {
+  const claimedWordIndexes = new Set<number>();
+  for (const entity of [...teamEntities, ...playerEntities]) {
+    for (let index = entity.startIndex; index < entity.endExclusive; index += 1) {
+      claimedWordIndexes.add(index);
+    }
+  }
+
+  const unmatched = new Set<string>();
+  words.forEach((word, index) => {
+    if (claimedWordIndexes.has(index)) return;
+    if (!isAliasCandidateToken(word)) return;
+    unmatched.add(word);
+  });
+
+  return [...unmatched];
+}
+
+function isAliasCandidateToken(word: string): boolean {
+  if (word.length < 3) return false;
+  if (!/^[a-z]+$/.test(word)) return false;
+  if (NON_ALIAS_QUERY_TERMS.has(word)) return false;
+  return true;
+}
+
+function shouldTrackUnmatchedAliasTokens(intent: NflIntent, normalizedQuery: string): boolean {
+  if (intent === "team_stat" || intent === "player_stat" || intent === "compare") {
+    return true;
+  }
+  return /\bteam\b/.test(normalizedQuery) || /\bplayer\b/.test(normalizedQuery);
+}
+
+function resolveComparator(value: string): ComparatorResolution {
+  for (const entry of COMPARATOR_LEXICON) {
+    if (includesPhrase(value, entry.cue)) {
+      return {
+        sort: entry.direction,
+        matchedCue: entry.cue,
+        unknownCue: null,
+      };
+    }
+  }
+
+  for (const cue of UNKNOWN_COMPARATOR_CUES) {
+    if (includesPhrase(value, cue)) {
+      return {
+        sort: null,
+        matchedCue: null,
+        unknownCue: cue,
+      };
+    }
+  }
+
+  return {
+    sort: null,
+    matchedCue: null,
+    unknownCue: null,
+  };
+}
+
+function includesPhrase(value: string, phrase: string): boolean {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`\\b${escaped}\\b`).test(value);
+}
+
+function emitParserTelemetry(
+  requestId: string,
+  rawQuery: string,
+  intent: NflIntent,
+  confidence: number,
+  slots: QuerySlot,
+  needsClarification: boolean,
+  telemetryType: "unmatched_alias_tokens" | "unknown_comparator_cue",
+  payload: Record<string, unknown>
+): void {
+  void logEvent({
+    eventType: "query",
+    level: telemetryType === "unknown_comparator_cue" ? "warn" : "info",
+    requestId,
+    source: PARSER_SOURCE,
+    route: PARSER_ROUTE,
+    query: rawQuery,
+    intent,
+    confidence,
+    needsClarification,
+    slots: {
+      telemetryType,
+      scopeType: slots.scopeType,
+      season: slots.season ?? null,
+      week: slots.week ?? null,
+      ...payload,
+    },
+  });
+}
+
+function buildClarification(
+  intent: NflIntent,
+  slots: QuerySlot,
+  ambiguities: ParsedAmbiguity[],
+  confidence: number
+): ClarificationPayload | null {
+  if (ambiguities.length > 0) {
+    const primary = ambiguities[0];
+    return {
+      reason: "ambiguous_entity",
+      prompt: `I found multiple matches for '${primary.token}'. Which one did you mean?`,
+      slot: primary.slot,
+      candidates: primary.candidates,
+      confidence: Number(confidence.toFixed(2)),
+    };
+  }
+
+  const missingContext = detectMissingContext(intent, slots);
+  if (missingContext) {
+    return {
+      reason: "missing_context",
+      prompt: missingContext.prompt,
+      slot: missingContext.slot,
+      confidence: Number(confidence.toFixed(2)),
+    };
+  }
+
+  if (confidence >= CLARIFY_CONFIDENCE_MIN && confidence < ANSWER_CONFIDENCE_MIN) {
+    return {
+      reason: "low_confidence",
+      prompt: "Please rephrase with a team or player, stat, and week or season.",
+      slot: "intent",
+      confidence: Number(confidence.toFixed(2)),
+    };
+  }
+
+  return null;
+}
+
+function detectMissingContext(
+  intent: NflIntent,
+  slots: QuerySlot
+): { slot: ClarificationSlot; prompt: string } | null {
+  if (intent === "leaders" && !slots.stat) {
+    return {
+      slot: "stat",
+      prompt: "Which stat should I rank (for example: passing yards, sacks, or penalties)?",
+    };
+  }
+
+  if (intent === "team_stat" && slots.teams.length === 0) {
+    return {
+      slot: "team",
+      prompt: "Which team do you want stats for?",
+    };
+  }
+
+  if (intent === "player_stat" && slots.players.length === 0) {
+    return {
+      slot: "player",
+      prompt: "Which player do you want stats for?",
+    };
+  }
+
+  if (intent === "compare" && slots.teams.length + slots.players.length < 2) {
+    return {
+      slot: "team",
+      prompt: "Who do you want to compare? Please include two teams or players.",
+    };
+  }
+
+  return null;
+}
+
+function resolveResolution(
+  confidence: number,
+  clarification: ClarificationPayload | null
+): QueryResolution {
+  if (clarification) return "clarify";
+  if (confidence < CLARIFY_CONFIDENCE_MIN) return "reject";
+  return "answer";
+}
+
 function estimateConfidence(
   intent: NflIntent,
   slots: QuerySlot,
@@ -305,21 +657,6 @@ function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | 
   if (slots.season !== undefined) return "season";
   if (/\bweek\b/.test(value)) return "week";
   if (/\bseason\b/.test(value) || /\byear\b/.test(value)) return "season";
-  return null;
-}
-
-function resolveSort(value: string): "asc" | "desc" | null {
-  if (
-    /\bworst\b/.test(value) ||
-    /\blowest\b/.test(value) ||
-    /\bleast\b/.test(value) ||
-    /\bfewest\b/.test(value)
-  ) {
-    return "asc";
-  }
-  if (/\btop\b/.test(value) || /\bmost\b/.test(value) || /\bhighest\b/.test(value)) {
-    return "desc";
-  }
   return null;
 }
 
