@@ -51,6 +51,7 @@ test("parses compare intent with multiple teams", () => {
 test("returns ambiguity when a team alias is mapped to multiple teams", () => {
   const result = parseNflQuery("team stats for united this week");
 
+  assert.equal(result.intent, "team_stat");
   assert.equal(result.requiresClarification, true);
   assert.equal(result.resolution, "clarify");
   assert.equal(result.ambiguities.length, 1);

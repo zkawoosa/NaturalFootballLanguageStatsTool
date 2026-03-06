@@ -89,7 +89,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Expand alias coverage with normalized team/player lookup entries and add regression tests.
 
 ### Day 18–20: Query API route
-- [ ] Implement `POST /api/query`.
+- [X] Implement `POST /api/query`.
 - [ ] Map parsed intent to data calls via adapter.
 - [ ] Return structured response (`results`, `summary`, `needsClarification`).
 

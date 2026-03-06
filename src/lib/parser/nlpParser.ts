@@ -377,6 +377,14 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "compare";
   }
 
+  if (/\bteam\s+stats?\b/.test(value)) {
+    return "team_stat";
+  }
+
+  if (/\bplayer\s+stats?\b/.test(value)) {
+    return "player_stat";
+  }
+
   if (/\bweekly\b/.test(value) || /\bsummary\b/.test(value)) {
     return "weekly_summary";
   }
