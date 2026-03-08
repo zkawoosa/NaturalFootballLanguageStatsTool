@@ -91,7 +91,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Day 18–20: Query API route
 - [X] Implement `POST /api/query`.
 - [X] Map parsed intent to data calls via adapter.
-- [ ] Return structured response (`results`, `summary`, `needsClarification`).
+- [X] Return structured response (`results`, `summary`, `needsClarification`).
 
 ### Day 21–23: UI MVP
 - [ ] Build search UI, result cards/table, loading/error/empty states.

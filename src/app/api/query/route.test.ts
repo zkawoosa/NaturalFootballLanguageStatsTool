@@ -175,6 +175,50 @@ test("POST /api/query maps team stat intent to getTeamStats and returns mapped r
   assert.equal(getTeamStatsCalls, 1);
 });
 
+test("POST /api/query returns empty success state when adapter finds no rows", async () => {
+  let getTeamsCalls = 0;
+  let getTeamStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getTeams: async () => {
+        getTeamsCalls += 1;
+        return [
+          {
+            id: "1",
+            source: "balldontlie",
+            sourceId: "1",
+            name: "Atlanta Falcons",
+            abbreviation: "ATL",
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>[number],
+        ];
+      },
+      getTeamStats: async () => {
+        getTeamStatsCalls += 1;
+        return [];
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "team stats for falcons week 5 season 2024" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "team_stat");
+  assert.equal(body.needsClarification, false);
+  assert.equal(body.dataSource, "public");
+  assert.equal(Array.isArray(body.results), true);
+  assert.equal((body.results as Array<Record<string, unknown>>).length, 0);
+  assert.equal(body.summary, "No matching records were found.");
+  assert.equal(getTeamsCalls, 1);
+  assert.equal(getTeamStatsCalls, 1);
+});
+
 test("POST /api/query clarifies unsupported team stat without hitting adapter", async () => {
   let getTeamStatsCalls = 0;
   setQueryStatsServiceFactoryForTests(() =>
@@ -229,6 +273,94 @@ test("POST /api/query clarifies unsupported player stat without hitting adapter"
   assert.equal(Array.isArray(body.alternatives), true);
   assert.equal((body.alternatives as string[]).includes("passingYards"), true);
   assert.equal(getPlayerStatsCalls, 0);
+});
+
+test("POST /api/query supports team compare with team-only stat mapping", async () => {
+  let getTeamsCalls = 0;
+  let getTeamStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getTeams: async () => {
+        getTeamsCalls += 1;
+        return [
+          {
+            id: "1",
+            source: "balldontlie",
+            sourceId: "1",
+            name: "Atlanta Falcons",
+            abbreviation: "ATL",
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>[number],
+          {
+            id: "2",
+            source: "balldontlie",
+            sourceId: "2",
+            name: "Baltimore Ravens",
+            abbreviation: "BAL",
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>[number],
+        ];
+      },
+      getTeamStats: async () => {
+        getTeamStatsCalls += 1;
+        return [
+          {
+            id: `ts-${getTeamStatsCalls}`,
+            source: "balldontlie",
+            sourceId: `ts-${getTeamStatsCalls}`,
+            teamId: getTeamStatsCalls === 1 ? "1" : "2",
+            scope: "week",
+            season: 2025,
+            week: 7,
+            turnovers: getTeamStatsCalls === 1 ? 1 : 2,
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeamStats"]>>[number],
+        ];
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Compare Falcons and Ravens turnovers week 7" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "compare");
+  assert.equal(body.needsClarification, false);
+  assert.equal(Array.isArray(body.results), true);
+  assert.equal((body.results as Array<Record<string, unknown>>).length, 2);
+  assert.equal(getTeamsCalls, 1);
+  assert.equal(getTeamStatsCalls, 2);
+});
+
+test("POST /api/query returns upstream-failure state with parsed intent", async () => {
+  let getPlayerStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async () => {
+        getPlayerStatsCalls += 1;
+        throw new Error("upstream unavailable");
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top 5 rushing touchdowns in week 7" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "leaders");
+  assert.equal(body.needsClarification, true);
+  assert.equal(body.summary, "Data source is temporarily unavailable. Please try again.");
+  assert.equal(typeof body.clarificationPrompt, "string");
+  assert.equal(getPlayerStatsCalls, 1);
 });
 
 test("POST /api/query returns 400 when query is missing", async () => {

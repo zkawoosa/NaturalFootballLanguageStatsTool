@@ -107,7 +107,7 @@ async function buildQueryResponse(
     };
   } catch {
     return {
-      intent: "unknown",
+      intent: parsed.intent,
       slots: parsed.slots as Record<string, unknown>,
       results: [],
       summary: "Data source is temporarily unavailable. Please try again.",
@@ -186,7 +186,11 @@ function validateStatCapability(parsed: ParsedQuery): StatCapabilityIssue | null
   const stat = parsed.slots.stat;
   if (!stat) return null;
 
-  if (parsed.intent === "team_stat" || isTeamLeadersQuery(parsed)) {
+  if (
+    parsed.intent === "team_stat" ||
+    isTeamLeadersQuery(parsed) ||
+    (parsed.intent === "compare" && parsed.slots.teams.length >= 2)
+  ) {
     if (!TEAM_STAT_FIELD_MAP[stat]) {
       return {
         prompt: "That stat is not supported for team stats yet. Try passingYards, rushingYards, or turnovers.",
@@ -196,7 +200,11 @@ function validateStatCapability(parsed: ParsedQuery): StatCapabilityIssue | null
     return null;
   }
 
-  if (parsed.intent === "player_stat" || parsed.intent === "leaders" || parsed.intent === "compare") {
+  if (
+    parsed.intent === "player_stat" ||
+    parsed.intent === "leaders" ||
+    (parsed.intent === "compare" && parsed.slots.players.length >= 2)
+  ) {
     if (!PLAYER_STAT_FIELD_MAP[stat]) {
       return {
         prompt:
