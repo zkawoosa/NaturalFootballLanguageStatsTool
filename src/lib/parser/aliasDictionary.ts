@@ -1,3 +1,4 @@
+import { GENERATED_PLAYER_ALIAS_MAP, GENERATED_TEAM_ALIAS_MAP } from "./generatedAliasData.ts";
 export type StatAlias = {
   canonical: string;
   examples: string[];
@@ -11,10 +12,10 @@ export type AliasResolution = {
 export const TEAM_ALIAS_MAP: Record<string, string[]> = {
   atl: ["ATL"],
   falcons: ["ATL"],
-  sf: ["SFO"],
-  "49ers": ["SFO"],
-  niners: ["SFO"],
-  sfo: ["SFO"],
+  sf: ["SF"],
+  "49ers": ["SF"],
+  niners: ["SF"],
+  sfo: ["SF"],
   eagles: ["PHI"],
   phi: ["PHI"],
   giants: ["NYG"],
@@ -141,3 +142,23 @@ export function mapStatAlias(raw: string): string | null {
   }
   return null;
 }
+
+// BEGIN GENERATED_ALIAS_MERGE
+function mergeAliasMap(target: Record<string, string[]>, source: Record<string, string[]>): void {
+  for (const [alias, candidates] of Object.entries(source)) {
+    if (!target[alias]) {
+      target[alias] = [...candidates];
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      if (!target[alias].includes(candidate)) {
+        target[alias].push(candidate);
+      }
+    }
+  }
+}
+
+mergeAliasMap(TEAM_ALIAS_MAP, GENERATED_TEAM_ALIAS_MAP);
+mergeAliasMap(PLAYER_ALIAS_MAP, GENERATED_PLAYER_ALIAS_MAP);
+// END GENERATED_ALIAS_MERGE
