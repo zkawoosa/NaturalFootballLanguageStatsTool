@@ -26,9 +26,6 @@ export const GENERATED_TEAM_ALIAS_MAP: Record<string, string[]> = {
   "baltimore": [
     "BAL"
   ],
-  "bay": [
-    "GB"
-  ],
   "bears": [
     "CHI"
   ],
@@ -82,9 +79,6 @@ export const GENERATED_TEAM_ALIAS_MAP: Record<string, string[]> = {
   ],
   "cincinnati": [
     "CIN"
-  ],
-  "city": [
-    "KC"
   ],
   "cle": [
     "CLE"
@@ -188,9 +182,6 @@ export const GENERATED_TEAM_ALIAS_MAP: Record<string, string[]> = {
   "lar": [
     "LAR"
   ],
-  "las": [
-    "LV"
-  ],
   "las vegas": [
     "LV"
   ],
@@ -220,12 +211,6 @@ export const GENERATED_TEAM_ALIAS_MAP: Record<string, string[]> = {
   ],
   "ne": [
     "NE"
-  ],
-  "new": [
-    "NE",
-    "NO",
-    "NYG",
-    "NYJ"
   ],
   "new york giants": [
     "NYG"

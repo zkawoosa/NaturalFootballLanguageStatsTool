@@ -86,7 +86,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add telemetry logging for unmatched alias tokens.
 - [X] Add telemetry logging for unknown comparator phrases.
 - [X] Expand comparator lexicon mapping and add parser regression tests.
-- [ ] Expand alias coverage with normalized team/player lookup entries and add regression tests.
+- [X] Expand alias coverage with normalized team/player lookup entries and add regression tests.
 
 ### Day 18–20: Query API route
 - [X] Implement `POST /api/query`.
@@ -117,8 +117,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Next 3 priorities
 
 ## Residual Risks (living section)
-- Last updated: 2026-03-03
-- [ ] Alias coverage is still dictionary-based, so uncommon nicknames/spellings may not resolve.
-  - Next mitigation: add unmatched-alias telemetry and broaden normalized alias coverage.
+- Last updated: 2026-03-10
+- [X] Alias coverage baseline expanded to 32 teams and >=500 players, and broad false-positive team tokens (`bay`, `las`, `new`, `city`) were removed.
+  - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
 - [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
   - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
