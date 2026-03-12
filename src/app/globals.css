@@ -57,6 +57,113 @@ h1 {
   font: inherit;
 }
 
+.query-workbench {
+  display: grid;
+  gap: 14px;
+}
+
+.query-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-secondary {
+  background: #6b7280;
+}
+
+.query-form button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid #b5bfce;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  color: #1f2937;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.chip[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chip-recent {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.chip-static {
+  cursor: default;
+}
+
+.recent-queries h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.response-panel {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafcff;
+}
+
+.muted {
+  color: #475569;
+}
+
+.state-title {
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.state-loading {
+  color: #1d4ed8;
+}
+
+.state-error {
+  color: #991b1b;
+}
+
+.state-clarification {
+  color: #7c2d12;
+}
+
+.result-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.result-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+.result-item pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.84rem;
+}
+
 .status-ok {
   color: #166534;
   font-weight: 700;
@@ -65,4 +172,18 @@ h1 {
 .status-bad {
   color: #991b1b;
   font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 24px 14px 40px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .query-form input {
+    font-size: 16px;
+  }
 }

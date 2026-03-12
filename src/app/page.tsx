@@ -1,5 +1,6 @@
 import { getAppShellViewModel } from "@/lib/app/appShellService.ts";
 import { createDataSource } from "@/lib/app/sourceFactory.ts";
+import { QueryWorkbench } from "./query-workbench.tsx";
 
 export default async function HomePage() {
   const viewModel = await getAppShellViewModel(createDataSource());
@@ -30,20 +31,7 @@ export default async function HomePage() {
 
       <section className="card">
         <h2>Query Shell</h2>
-        <form className="query-form">
-          <label htmlFor="query">Ask a question</label>
-          <input id="query" type="text" placeholder="Who had the most passing yards in week 7?" />
-          <button type="button">Search (Wiring next)</button>
-        </form>
-      </section>
-
-      <section className="card">
-        <h2>Sample Prompts</h2>
-        <ul>
-          {viewModel.samplePrompts.map((prompt) => (
-            <li key={prompt}>{prompt}</li>
-          ))}
-        </ul>
+        <QueryWorkbench samplePrompts={viewModel.samplePrompts} />
       </section>
     </main>
   );
