@@ -142,14 +142,12 @@ h1 {
 }
 
 .result-list {
-  list-style: none;
-  padding: 0;
   margin: 12px 0 0;
   display: grid;
   gap: 10px;
 }
 
-.result-item {
+.result-card {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
@@ -157,7 +155,35 @@ h1 {
   overflow-x: auto;
 }
 
-.result-item pre {
+.result-card-title {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) 1fr;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.result-grid dt {
+  margin: 0;
+  color: #475569;
+  font-weight: 600;
+}
+
+.result-grid dd {
+  margin: 0;
+  color: #0f172a;
+}
+
+.scoreline {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.result-fallback pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
@@ -185,5 +211,14 @@ h1 {
 
   .query-form input {
     font-size: 16px;
+  }
+
+  .result-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .result-grid dt {
+    margin-top: 6px;
   }
 }

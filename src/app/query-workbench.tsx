@@ -60,6 +60,140 @@ function prettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function isDisplayEmpty(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+function toDisplayValue(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function resultKey(item: Record<string, unknown>, index: number): string {
+  const id = item.id;
+  if (typeof id === "string" || typeof id === "number") {
+    return String(id);
+  }
+
+  const type = item.type;
+  if (typeof type === "string" && type.trim()) {
+    return `${type}-${index}`;
+  }
+
+  return `result-${index}`;
+}
+
+function ResultField({ label, value }: { label: string; value: unknown }) {
+  if (isDisplayEmpty(value)) return null;
+
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{toDisplayValue(value)}</dd>
+    </>
+  );
+}
+
+function ResultCard({ item, index }: { item: Record<string, unknown>; index: number }) {
+  const type = typeof item.type === "string" ? item.type : "";
+
+  if (type === "player_stat") {
+    return (
+      <article className="result-card">
+        <p className="result-card-title">Player Stat</p>
+        <dl className="result-grid">
+          <ResultField label="Player ID" value={item.playerId} />
+          <ResultField label="Team ID" value={item.teamId} />
+          <ResultField label="Stat" value={item.stat} />
+          <ResultField label="Value" value={item.value} />
+          <ResultField label="Season" value={item.season} />
+          <ResultField label="Week" value={item.week} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (type === "team_stat") {
+    return (
+      <article className="result-card">
+        <p className="result-card-title">Team Stat</p>
+        <dl className="result-grid">
+          <ResultField label="Team" value={item.team} />
+          <ResultField label="Team ID" value={item.teamId} />
+          <ResultField label="Stat" value={item.stat} />
+          <ResultField label="Value" value={item.value} />
+          <ResultField label="Season" value={item.season} />
+          <ResultField label="Week" value={item.week} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (type === "compare_team") {
+    return (
+      <article className="result-card">
+        <p className="result-card-title">Team Comparison</p>
+        <dl className="result-grid">
+          <ResultField label="Team" value={item.team} />
+          <ResultField label="Stat" value={item.stat} />
+          <ResultField label="Value" value={item.value} />
+          <ResultField label="Season" value={item.season} />
+          <ResultField label="Week" value={item.week} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (type === "compare_player") {
+    return (
+      <article className="result-card">
+        <p className="result-card-title">Player Comparison</p>
+        <dl className="result-grid">
+          <ResultField label="Player" value={item.player} />
+          <ResultField label="Stat" value={item.stat} />
+          <ResultField label="Value" value={item.value} />
+          <ResultField label="Season" value={item.season} />
+          <ResultField label="Week" value={item.week} />
+        </dl>
+      </article>
+    );
+  }
+
+  if (type === "game_summary") {
+    const homeTeam = toDisplayValue(item.homeTeam) || "Home";
+    const awayTeam = toDisplayValue(item.awayTeam) || "Away";
+    const homeScore = toDisplayValue(item.homeScore);
+    const awayScore = toDisplayValue(item.awayScore);
+    const scoreline =
+      homeScore || awayScore ? `${awayTeam} ${awayScore || "-"} @ ${homeTeam} ${homeScore || "-"}` : null;
+
+    return (
+      <article className="result-card">
+        <p className="result-card-title">Game Summary</p>
+        {scoreline ? <p className="scoreline">{scoreline}</p> : null}
+        <dl className="result-grid">
+          <ResultField label="Status" value={item.status} />
+          <ResultField label="Season" value={item.season} />
+          <ResultField label="Week" value={item.week} />
+          <ResultField label="Game ID" value={item.id} />
+        </dl>
+      </article>
+    );
+  }
+
+  return (
+    <article className="result-card result-fallback">
+      <p className="result-card-title">Result {index + 1}</p>
+      <pre>{prettyJson(item)}</pre>
+    </article>
+  );
+}
+
 export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<QueryUiState>({ status: "idle" });
@@ -201,9 +335,9 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
           </div>
         ) : null}
 
-        {state.status === "loaded" ? (
-          <LoadedQueryState response={state.response} />
-        ) : null}
+      {state.status === "loaded" ? (
+        <LoadedQueryState response={state.response} />
+      ) : null}
       </section>
     </div>
   );
@@ -242,13 +376,11 @@ function LoadedQueryState({ response }: { response: QueryResponse }) {
     <div className="state-success">
       <p className="state-title">Results</p>
       <p>{response.summary}</p>
-      <ul className="result-list">
+      <div className="result-list">
         {response.results.map((item, index) => (
-          <li key={`${index}-${String(item.id ?? "result")}`} className="result-item">
-            <pre>{prettyJson(item)}</pre>
-          </li>
+          <ResultCard key={resultKey(item, index)} item={item} index={index} />
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
