@@ -125,6 +125,38 @@ test("parses postseason season type", () => {
   assert.equal(result.clarification, null);
 });
 
+test("parses league leaders phrasing with leads cue", () => {
+  const result = parseNflQuery("Who leads the league in passing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(typeof result.slots.season, "number");
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.requiresClarification, false);
+});
+
+test("parses matchup weekly summary phrasing", () => {
+  const result = parseNflQuery("Show week 8 matchups");
+
+  assert.equal(result.intent, "weekly_summary");
+  assert.equal(result.slots.scopeType, "week");
+  assert.equal(result.slots.week, 8);
+  assert.equal(result.resolution, "answer");
+});
+
+test("parses compact wk token for team stat queries", () => {
+  const result = parseNflQuery("Falcons penalties in wk7 season 2024");
+
+  assert.equal(result.intent, "team_stat");
+  assert.equal(result.slots.teams.includes("ATL"), true);
+  assert.equal(result.slots.stat, "penalties");
+  assert.equal(result.slots.week, 7);
+  assert.equal(result.slots.season, 2024);
+  assert.equal(result.slots.scopeType, "week");
+  assert.equal(result.resolution, "answer");
+});
+
 test("captures unknown comparator telemetry cue when comparator is unrecognized", () => {
   const result = parseNflQuery("Leading passing yards this season");
 

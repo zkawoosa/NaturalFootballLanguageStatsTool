@@ -73,12 +73,14 @@ type ComparatorResolution = {
   unknownCue: string | null;
 };
 
-const WEEK_RE = /\b(?:week|wk)\s+(\d{1,2})\b/i;
+const WEEK_RE = /\b(?:week|wk)\s*(\d{1,2})\b/i;
 const SEASON_RE = /\b(?:season|year)\s+(\d{4})\b/i;
 const STANDALONE_YEAR_RE = /\b(19\d{2}|20\d{2})\b/;
 const THIS_WEEK_RE = /\bthis\s+week\b/i;
 const THIS_SEASON_RE = /\bthis\s+season\b/i;
+const THIS_YEAR_RE = /\bthis\s+year\b/i;
 const LAST_YEAR_RE = /\blast\s+year\b/i;
+const LAST_SEASON_RE = /\blast\s+season\b/i;
 const LIMIT_RE = /\b(?:top|best|most|highest|lowest|worst|fewest|least|bottom)\s+(\d{1,2})\b/i;
 const ANSWER_CONFIDENCE_MIN = 0.65;
 const CLARIFY_CONFIDENCE_MIN = 0.45;
@@ -119,10 +121,22 @@ const NON_ALIAS_QUERY_TERMS = new Set([
   "season",
   "year",
   "leaders",
+  "leader",
+  "lead",
+  "leads",
+  "leading",
   "leaderboard",
   "compare",
   "summary",
   "weekly",
+  "game",
+  "games",
+  "score",
+  "scores",
+  "schedule",
+  "matchup",
+  "matchups",
+  "recap",
   "top",
   "best",
   "most",
@@ -190,9 +204,9 @@ export function parseNflQuery(input: string): ParsedQuery {
   if (seasonMatch) {
     const season = parseInt(seasonMatch[1], 10);
     if (Number.isFinite(season)) slots.season = season;
-  } else if (LAST_YEAR_RE.test(normalized)) {
+  } else if (LAST_YEAR_RE.test(normalized) || LAST_SEASON_RE.test(normalized)) {
     slots.season = getCurrentSeason() - 1;
-  } else if (THIS_SEASON_RE.test(normalized)) {
+  } else if (THIS_SEASON_RE.test(normalized) || THIS_YEAR_RE.test(normalized)) {
     slots.season = getCurrentSeason();
   } else if (standaloneYearMatch) {
     const season = parseInt(standaloneYearMatch[1], 10);
@@ -385,7 +399,7 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "player_stat";
   }
 
-  if (/\bweekly\b/.test(value) || /\bsummary\b/.test(value)) {
+  if (isWeeklySummaryCue(value) && slots.teams.length === 0 && slots.players.length === 0 && !slots.stat) {
     return "weekly_summary";
   }
 
@@ -404,6 +418,10 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "leaders";
   }
 
+  if ((/\blead(?:s|er|ers|ing)?\b/.test(value) || /\brank(?:ed|ing)?\b/.test(value)) && slots.stat) {
+    return "leaders";
+  }
+
   if (
     slots.players.length > 0 &&
     (/\bstat\b/.test(value) ||
@@ -417,7 +435,7 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
   if (slots.teams.length > 1) return "compare";
   if (slots.teams.length > 0) return "team_stat";
   if (slots.players.length > 0) return "player_stat";
-  if (/\bweekly\b/.test(value) || /\bweek\b/.test(value) || /\bsummary\b/.test(value)) {
+  if (isWeeklySummaryCue(value) && slots.teams.length === 0 && slots.players.length === 0 && !slots.stat) {
     return "weekly_summary";
   }
   if (slots.stat && (slots.scopeType === "week" || slots.scopeType === "season")) {
@@ -663,9 +681,28 @@ function getCurrentSeason(): number {
 function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | null {
   if (slots.week !== undefined) return "week";
   if (slots.season !== undefined) return "season";
-  if (/\bweek\b/.test(value)) return "week";
-  if (/\bseason\b/.test(value) || /\byear\b/.test(value)) return "season";
+  if (/\bweek\b/.test(value) || /\bweekly\b/.test(value)) return "week";
+  if (/\bseason\b/.test(value) || /\byear\b/.test(value) || /\bseasonal\b/.test(value)) return "season";
+  if (/\bmatchups?\b/.test(value) || /\bschedule\b/.test(value) || /\brecap\b/.test(value)) return "week";
+  if (
+    /\bgames?\b/.test(value) &&
+    (/\bthis\s+week\b/.test(value) || /\bweek\s*\d{1,2}\b/.test(value) || /\bweekly\b/.test(value))
+  ) {
+    return "week";
+  }
   return null;
+}
+
+function isWeeklySummaryCue(value: string): boolean {
+  if (/\bweekly\b/.test(value)) return true;
+  if (/\bsummary\b/.test(value)) return true;
+  if (/\bmatchups?\b/.test(value)) return true;
+  if (/\bschedule\b/.test(value)) return true;
+  if (/\brecap\b/.test(value)) return true;
+  if (/\bweek\s*\d{1,2}\s+games?\b/.test(value)) return true;
+  if (/\bgames?\s+(?:this\s+week|week\s*\d{1,2})\b/.test(value)) return true;
+  if (/\bthis\s+week\s+games?\b/.test(value)) return true;
+  return false;
 }
 
 function resolveLimit(value: string): number | null {
