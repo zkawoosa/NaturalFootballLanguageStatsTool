@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { QueryResponse } from "@/lib/contracts/api.ts";
 
@@ -195,12 +195,33 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
 }
 
 export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
+  const queryInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [state, setState] = useState<QueryUiState>({ status: "idle" });
   const [recentQueries, setRecentQueries] = useState<string[]>([]);
 
   useEffect(() => {
     setRecentQueries(readRecentQueries());
+  }, []);
+
+  useEffect(() => {
+    function handleGlobalKeydown(event: KeyboardEvent): void {
+      const target = event.target as HTMLElement | null;
+      const isEditableTarget =
+        target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || !!target?.isContentEditable;
+
+      if (event.key === "/" && !isEditableTarget && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        queryInputRef.current?.focus();
+      }
+
+      if (event.key === "Escape" && document.activeElement === queryInputRef.current) {
+        setQuery("");
+      }
+    }
+
+    window.addEventListener("keydown", handleGlobalKeydown);
+    return () => window.removeEventListener("keydown", handleGlobalKeydown);
   }, []);
 
   async function runQuery(rawQuery: string): Promise<void> {
@@ -264,12 +285,18 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
     <div className="query-workbench">
       <form className="query-form" onSubmit={onSubmit}>
         <label htmlFor="query">Ask a question</label>
+        <p id="query-help" className="form-help">
+          Press Enter to run, "/" to focus input, and Esc to clear input.
+        </p>
         <input
+          ref={queryInputRef}
           id="query"
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Who had the most passing yards in week 7?"
+          aria-describedby="query-help"
+          autoComplete="off"
         />
         <div className="query-actions">
           <button type="submit" disabled={!canSubmit}>
@@ -297,6 +324,7 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
             className="chip"
             onClick={() => void runQuery(prompt)}
             disabled={isLoading}
+            aria-label={`Run sample query: ${prompt}`}
           >
             {prompt}
           </button>
@@ -314,6 +342,7 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
                 className="chip chip-recent"
                 onClick={() => void runQuery(item)}
                 disabled={isLoading}
+                aria-label={`Run recent query: ${item}`}
               >
                 {item}
               </button>
@@ -322,7 +351,13 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
         </div>
       ) : null}
 
-      <section className="response-panel">
+      <section
+        className="response-panel"
+        role={state.status === "request_error" ? "alert" : "status"}
+        aria-live={state.status === "request_error" ? "assertive" : "polite"}
+        aria-busy={isLoading}
+        aria-atomic="true"
+      >
         {state.status === "idle" ? (
           <p className="muted">Submit a query to see normalized API results.</p>
         ) : null}

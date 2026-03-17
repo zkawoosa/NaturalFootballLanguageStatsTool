@@ -68,6 +68,12 @@ h1 {
   gap: 8px;
 }
 
+.form-help {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
 .button-secondary {
   background: #6b7280;
 }
@@ -92,6 +98,10 @@ h1 {
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.2;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
 }
 
 .chip[disabled] {
@@ -129,6 +139,7 @@ h1 {
   border-radius: 10px;
   padding: 12px;
   background: #fafcff;
+  overflow-wrap: anywhere;
 }
 
 .muted {
@@ -222,6 +233,14 @@ h1 {
 
   .query-form input {
     font-size: 16px;
+  }
+
+  .query-actions {
+    flex-direction: column;
+  }
+
+  .query-actions button {
+    width: 100%;
   }
 
   .result-grid {
