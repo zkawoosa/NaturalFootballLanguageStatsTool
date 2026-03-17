@@ -335,15 +335,30 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
           </div>
         ) : null}
 
-      {state.status === "loaded" ? (
-        <LoadedQueryState response={state.response} />
-      ) : null}
+        {state.status === "loaded" ? (
+          <LoadedQueryState
+            response={state.response}
+            isLoading={isLoading}
+            onSelectAlternative={(nextQuery) => {
+              if (isLoading) return;
+              void runQuery(nextQuery);
+            }}
+          />
+        ) : null}
       </section>
     </div>
   );
 }
 
-function LoadedQueryState({ response }: { response: QueryResponse }) {
+function LoadedQueryState({
+  response,
+  isLoading,
+  onSelectAlternative,
+}: {
+  response: QueryResponse;
+  isLoading: boolean;
+  onSelectAlternative: (query: string) => void;
+}) {
   if (response.needsClarification) {
     return (
       <div className="state-clarification">
@@ -353,9 +368,15 @@ function LoadedQueryState({ response }: { response: QueryResponse }) {
         {response.alternatives.length > 0 ? (
           <div className="chip-row">
             {response.alternatives.map((option) => (
-              <span key={option} className="chip chip-static">
+              <button
+                key={option}
+                type="button"
+                className="chip chip-action"
+                onClick={() => onSelectAlternative(option)}
+                disabled={isLoading}
+              >
                 {option}
-              </span>
+              </button>
             ))}
           </div>
         ) : null}
