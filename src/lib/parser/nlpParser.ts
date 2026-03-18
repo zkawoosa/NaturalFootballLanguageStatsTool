@@ -81,23 +81,34 @@ const THIS_SEASON_RE = /\bthis\s+season\b/i;
 const THIS_YEAR_RE = /\bthis\s+year\b/i;
 const LAST_YEAR_RE = /\blast\s+year\b/i;
 const LAST_SEASON_RE = /\blast\s+season\b/i;
-const LIMIT_RE = /\b(?:top|best|most|highest|lowest|worst|fewest|least|bottom)\s+(\d{1,2})\b/i;
+const LIMIT_DIRECTIONAL_RE =
+  /\b(?:top|best|most|highest|lowest|worst|fewest|least|bottom|first|last)\s+(\d{1,3})\b/i;
+const LIMIT_SUBJECT_RE = /\b(\d{1,3})\s+(?:leaders?|players?|teams?|results?)\b/i;
+const LIMIT_EXPLICIT_RE = /\blimit(?:\s+to)?\s+(\d{1,3})\b/i;
 const ANSWER_CONFIDENCE_MIN = 0.65;
 const CLARIFY_CONFIDENCE_MIN = 0.45;
+const LIMIT_MIN = 1;
+const LIMIT_MAX = 25;
 const PARSER_ROUTE = "parser:nlp";
 const PARSER_SOURCE = "parser";
 
 const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
+  { cue: "ascending", direction: "asc" },
+  { cue: "asc", direction: "asc" },
   { cue: "worst", direction: "asc" },
   { cue: "lowest", direction: "asc" },
   { cue: "least", direction: "asc" },
   { cue: "fewest", direction: "asc" },
   { cue: "bottom", direction: "asc" },
+  { cue: "last", direction: "asc" },
   { cue: "smallest", direction: "asc" },
+  { cue: "descending", direction: "desc" },
+  { cue: "desc", direction: "desc" },
   { cue: "top", direction: "desc" },
   { cue: "most", direction: "desc" },
   { cue: "highest", direction: "desc" },
   { cue: "best", direction: "desc" },
+  { cue: "first", direction: "desc" },
   { cue: "biggest", direction: "desc" },
 ];
 
@@ -146,6 +157,12 @@ const NON_ALIAS_QUERY_TERMS = new Set([
   "fewest",
   "least",
   "bottom",
+  "first",
+  "last",
+  "ascending",
+  "descending",
+  "asc",
+  "desc",
   "smallest",
   "biggest",
   "passing",
@@ -413,7 +430,9 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     /\blowest\b/.test(value) ||
     /\bworst\b/.test(value) ||
     /\bfewest\b/.test(value) ||
-    /\bleast\b/.test(value)
+    /\bleast\b/.test(value) ||
+    /\bfirst\b/.test(value) ||
+    /\blast\b/.test(value)
   ) {
     return "leaders";
   }
@@ -706,11 +725,12 @@ function isWeeklySummaryCue(value: string): boolean {
 }
 
 function resolveLimit(value: string): number | null {
-  const match = value.match(LIMIT_RE);
-  if (!match) return null;
-  const parsed = parseInt(match[1], 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
+  const limitMatch = value.match(LIMIT_DIRECTIONAL_RE) ?? value.match(LIMIT_SUBJECT_RE) ?? value.match(LIMIT_EXPLICIT_RE);
+  if (!limitMatch) return null;
+  const parsed = parseInt(limitMatch[1], 10);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < LIMIT_MIN) return null;
+  return Math.min(parsed, LIMIT_MAX);
 }
 
 function resolveSeasonType(

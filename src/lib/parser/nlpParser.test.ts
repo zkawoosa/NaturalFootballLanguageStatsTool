@@ -101,6 +101,46 @@ test("maps bottom phrasing with numeric limit to ascending sort", () => {
   assert.equal(result.telemetry.unknownComparatorCue, null);
 });
 
+test("extracts subject-count limit phrasing", () => {
+  const result = parseNflQuery("Show 7 leaders by rushing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "rushingYards");
+  assert.equal(result.slots.limit, 7);
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(result.resolution, "answer");
+});
+
+test("supports explicit limit syntax and clamps high limits", () => {
+  const result = parseNflQuery("Passing yards leaders limit 99 this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.equal(result.slots.limit, 25);
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(result.resolution, "answer");
+});
+
+test("maps first phrasing to descending sort", () => {
+  const result = parseNflQuery("First 4 teams by penalties this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "penalties");
+  assert.equal(result.slots.limit, 4);
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.telemetry.matchedComparatorCue, "first");
+});
+
+test("maps last phrasing to ascending sort", () => {
+  const result = parseNflQuery("Last 4 teams by penalties this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "penalties");
+  assert.equal(result.slots.limit, 4);
+  assert.equal(result.slots.sort, "asc");
+  assert.equal(result.telemetry.matchedComparatorCue, "last");
+});
+
 test("extracts standalone season year and asc sort from worst query phrasing", () => {
   const result = parseNflQuery("Which team is the worst rushing offense in 2023");
 
