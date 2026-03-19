@@ -102,6 +102,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Add sort/limit filters.
 
 ### Day 26–27: Performance + hardening
+- [ ] Add server-side cache + throttle safeguards for upstream 5 requests/min free-tier limits.
 - [ ] Add caching knobs, timeout/retry tuning, optional autocomplete endpoints.
 - [ ] Run parser corpus against implementation and patch top failures.
 

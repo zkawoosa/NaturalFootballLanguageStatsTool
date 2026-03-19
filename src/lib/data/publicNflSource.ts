@@ -146,6 +146,8 @@ export interface IDataSource {
 const DEFAULT_BASE_URLS = ["https://api.balldontlie.io/nfl/v1", "https://api.balldontlie.io/v1"];
 
 const DEFAULT_TIMEOUT_MS = 12_000;
+const DEFAULT_REQUEST_WINDOW_MS = 60_000;
+const DEFAULT_REQUEST_WINDOW_MAX = 5;
 const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
 const STRICT_RETRIES_BY_STATUS = {
   429: 2,
@@ -166,10 +168,24 @@ export const STRICT_429_RETRY_POLICY: NflRetryPolicy = {
 export class PublicNflSource implements IDataSource {
   private baseUrl: string;
   private timeoutMs: number;
+  private requestWindowMs: number;
+  private requestWindowMax: number;
+  private requestTimestampsMs: number[];
+  private nowProvider: () => number;
 
-  constructor(opts?: { baseUrl?: string; timeoutMs?: number }) {
+  constructor(opts?: {
+    baseUrl?: string;
+    timeoutMs?: number;
+    requestWindowMs?: number;
+    requestWindowMax?: number;
+    nowProvider?: () => number;
+  }) {
     this.baseUrl = opts?.baseUrl?.replace(/\/$/, "") || DEFAULT_BASE_URLS[0];
     this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.requestWindowMs = opts?.requestWindowMs ?? DEFAULT_REQUEST_WINDOW_MS;
+    this.requestWindowMax = opts?.requestWindowMax ?? DEFAULT_REQUEST_WINDOW_MAX;
+    this.requestTimestampsMs = [];
+    this.nowProvider = opts?.nowProvider ?? (() => Date.now());
   }
 
   async getTeams(): Promise<Team[]> {
@@ -738,6 +754,8 @@ export class PublicNflSource implements IDataSource {
   }
 
   private async safeRequest(url: string): Promise<Response> {
+    this.enforceRequestBudget(url);
+
     const apiKey = getBalldontlieApiKey();
     const headers = {
       Accept: "application/json",
@@ -768,6 +786,22 @@ export class PublicNflSource implements IDataSource {
 
   private async wait(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private enforceRequestBudget(url: string): void {
+    const now = this.nowProvider();
+    const cutoff = now - this.requestWindowMs;
+    this.requestTimestampsMs = this.requestTimestampsMs.filter((timestamp) => timestamp >= cutoff);
+
+    if (this.requestTimestampsMs.length >= this.requestWindowMax) {
+      throw new NflSourceError(
+        "RATE_LIMIT",
+        `Local request budget exceeded (${this.requestWindowMax} requests per ${this.requestWindowMs / 1000}s) before calling ${url}`,
+        429
+      );
+    }
+
+    this.requestTimestampsMs.push(now);
   }
 
   private resolveRetryDelayMs(

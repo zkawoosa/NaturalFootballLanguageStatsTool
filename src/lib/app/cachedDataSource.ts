@@ -29,9 +29,56 @@ function stableStringify(value: unknown): string {
   return `{${normalized.join(",")}}`;
 }
 
+function normalizeCacheParam(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const normalizedItems = value
+      .map((item) => normalizeCacheParam(item))
+      .filter((item) => item !== undefined);
+
+    if (normalizedItems.length === 0) return undefined;
+
+    const allPrimitive = normalizedItems.every(
+      (item) => typeof item === "string" || typeof item === "number" || typeof item === "boolean"
+    );
+
+    if (allPrimitive) {
+      return [...normalizedItems].sort((a, b) => String(a).localeCompare(String(b)));
+    }
+
+    return normalizedItems;
+  }
+
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const normalizedRecord: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort((a, b) => a.localeCompare(b))) {
+      const normalized = normalizeCacheParam(record[key]);
+      if (normalized === undefined) continue;
+      normalizedRecord[key] = normalized;
+    }
+
+    if (Object.keys(normalizedRecord).length === 0) return undefined;
+    return normalizedRecord;
+  }
+
+  return value;
+}
+
 function buildCacheKey(method: string, params?: unknown): string {
-  if (!params) return method;
-  return `${method}:${stableStringify(params)}`;
+  const normalizedParams = normalizeCacheParam(params);
+  if (normalizedParams === undefined) return method;
+  return `${method}:${stableStringify(normalizedParams)}`;
 }
 
 export type CacheAwareDataSource = IDataSource & {
