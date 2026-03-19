@@ -45,9 +45,10 @@ export type QueryResolution = "answer" | "clarify" | "reject";
 export type ClarificationSlot = "team" | "player" | "stat" | "scope" | "intent";
 
 export type ClarificationReason = "ambiguous_entity" | "missing_context" | "low_confidence";
+export type ClarificationReasonExtended = ClarificationReason | "unsupported_scope";
 
 export type ClarificationPayload = {
-  reason: ClarificationReason;
+  reason: ClarificationReasonExtended;
   prompt: string;
   slot: ClarificationSlot;
   candidates?: string[];
@@ -120,6 +121,9 @@ const UNKNOWN_COMPARATOR_CUES = [
   "ranked by",
   "ranking by",
 ];
+const CAREER_SCOPE_CUES = /\b(all\s+time|career|ever|since\s+\d{4}|historical|history)\b/i;
+const UNSUPPORTED_CONSTRAINT_CUES =
+  /\b(non\s+quarterbacks?|without|over\s+\d+|under\s+\d+|first\s+two\s+seasons?|special\s+teams|defensive\s+touchdowns?)\b/i;
 
 const NON_ALIAS_QUERY_TERMS = new Set([
   "team",
@@ -270,6 +274,9 @@ export function parseNflQuery(input: string): ParsedQuery {
   const stat = mapStatAlias(normalized);
   if (stat) slots.stat = stat;
   slots.scopeType = resolveScopeType(normalized, slots);
+  if (slots.stat && slots.sort === null && shouldDefaultLeadersSort(normalized)) {
+    slots.sort = "desc";
+  }
 
   const intent = detectIntent(normalized, slots);
   const confidence = estimateConfidence(intent, slots, ambiguities.length > 0, ambiguities);
@@ -432,12 +439,17 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     /\bfewest\b/.test(value) ||
     /\bleast\b/.test(value) ||
     /\bfirst\b/.test(value) ||
-    /\blast\b/.test(value)
+    /\blast\b/.test(value) ||
+    /\bleader\b/.test(value)
   ) {
     return "leaders";
   }
 
   if ((/\blead(?:s|er|ers|ing)?\b/.test(value) || /\brank(?:ed|ing)?\b/.test(value)) && slots.stat) {
+    return "leaders";
+  }
+
+  if (isHistoricalLeaderCue(value) && slots.stat) {
     return "leaders";
   }
 
@@ -594,6 +606,16 @@ function buildClarification(
     };
   }
 
+  const unsupportedScope = detectUnsupportedScopeOrConstraint(intent, slots, slots.raw);
+  if (unsupportedScope) {
+    return {
+      reason: "unsupported_scope",
+      prompt: unsupportedScope.prompt,
+      slot: unsupportedScope.slot,
+      confidence: Number(confidence.toFixed(2)),
+    };
+  }
+
   if (confidence >= CLARIFY_CONFIDENCE_MIN && confidence < ANSWER_CONFIDENCE_MIN) {
     return {
       reason: "low_confidence",
@@ -709,6 +731,61 @@ function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | 
   ) {
     return "week";
   }
+  return null;
+}
+
+function shouldDefaultLeadersSort(value: string): boolean {
+  if (!/\bleader(?:s|board)?\b/.test(value)) {
+    return false;
+  }
+  if (/\bworst\b|\blowest\b|\bleast\b|\bfewest\b|\bbottom\b|\blast\b|\bascending\b|\basc\b/.test(value)) {
+    return false;
+  }
+  return true;
+}
+
+function isHistoricalLeaderCue(value: string): boolean {
+  if (!slotsLikeLeader(value)) return false;
+  return /\bsince\s+\d{4}\b/.test(value) || /\ball\s+time\b/.test(value) || /\bever\b/.test(value);
+}
+
+function slotsLikeLeader(value: string): boolean {
+  return /\bleader(?:s|board)?\b/.test(value) || /\blead(?:s|ing)?\b/.test(value);
+}
+
+function detectUnsupportedScopeOrConstraint(
+  intent: NflIntent,
+  slots: QuerySlot,
+  rawQuery: string
+): { slot: ClarificationSlot; prompt: string } | null {
+  const normalized = rawQuery.toLowerCase();
+  if (intent !== "leaders" && intent !== "player_stat" && intent !== "team_stat") {
+    return null;
+  }
+
+  if (CAREER_SCOPE_CUES.test(normalized)) {
+    return {
+      slot: "scope",
+      prompt:
+        "That historical/career scope is not supported yet. Please ask for a specific week or season in current data coverage.",
+    };
+  }
+
+  if (UNSUPPORTED_CONSTRAINT_CUES.test(normalized)) {
+    return {
+      slot: "scope",
+      prompt:
+        "That filter/constraint is not supported yet. Please simplify to team/player + stat + week or season.",
+    };
+  }
+
+  if (intent === "leaders" && slots.stat && slots.scopeType === null) {
+    return {
+      slot: "scope",
+      prompt: "Please specify week or season for leaderboard queries.",
+    };
+  }
+
   return null;
 }
 

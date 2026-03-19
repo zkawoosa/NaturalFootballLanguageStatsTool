@@ -141,6 +141,15 @@ test("maps last phrasing to ascending sort", () => {
   assert.equal(result.telemetry.matchedComparatorCue, "last");
 });
 
+test("defaults leaders sort to desc when cue is present without comparator", () => {
+  const result = parseNflQuery("Passing yards leaders this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.resolution, "answer");
+});
+
 test("extracts standalone season year and asc sort from worst query phrasing", () => {
   const result = parseNflQuery("Which team is the worst rushing offense in 2023");
 
@@ -205,6 +214,16 @@ test("captures unknown comparator telemetry cue when comparator is unrecognized"
   assert.equal(result.slots.sort, null);
   assert.equal(result.telemetry.unknownComparatorCue, "leading");
   assert.equal(result.telemetry.matchedComparatorCue, null);
+});
+
+test("clarifies unsupported career scope queries", () => {
+  const result = parseNflQuery("Passing yards leaders all time");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.requiresClarification, true);
+  assert.equal(result.resolution, "clarify");
+  assert.equal(result.clarification?.reason, "unsupported_scope");
+  assert.equal(result.clarification?.slot, "scope");
 });
 
 test("captures unmatched alias telemetry tokens", () => {

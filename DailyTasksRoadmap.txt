@@ -107,6 +107,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Run parser corpus against implementation and patch top failures.
 
 ### Day 28: Final QA + deploy prep
+- [ ] Reduce top parser corpus mismatch buckets (scopeType:career, intent:leaders, sort:desc, state:clarification, state:error) and rerun corpus to record delta.
 - [ ] Run full manual QA pass on corpus.
 - [ ] Prepare deploy config and README.
 - [ ] Deploy preview, smoke test, record known limitations.
@@ -123,3 +124,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
   - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
 - [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
   - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
+
+## Parser Corpus Bucket Tracker (snapshot 2026-03-19)
+- [ ] scopeType:career (7)
+- [ ] intent:leaders (7)
+- [ ] sort:desc (4)
+- [ ] state:clarification (4)
+- [ ] state:error (3)
