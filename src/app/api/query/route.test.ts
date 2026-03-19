@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { NflSourceError } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
 import { POST, setQueryStatsServiceFactoryForTests } from "./route.ts";
 
@@ -360,6 +361,37 @@ test("POST /api/query returns upstream-failure state with parsed intent", async 
   assert.equal(body.needsClarification, true);
   assert.equal(body.summary, "Data source is temporarily unavailable. Please try again.");
   assert.equal(typeof body.clarificationPrompt, "string");
+  assert.equal(getPlayerStatsCalls, 1);
+});
+
+test("POST /api/query returns rate-limit fallback message when source budget is exhausted", async () => {
+  let getPlayerStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async () => {
+        getPlayerStatsCalls += 1;
+        throw new NflSourceError("RATE_LIMIT", "local source budget exhausted", 429);
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top 5 rushing touchdowns in week 7" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "leaders");
+  assert.equal(body.needsClarification, true);
+  assert.equal(
+    body.summary,
+    "Due to data source constraints, we are limited to 5 queries per minute for now"
+  );
+  assert.equal(body.clarificationPrompt, "Please wait a minute and try again.");
   assert.equal(getPlayerStatsCalls, 1);
 });
 

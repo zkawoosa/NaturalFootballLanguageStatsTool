@@ -102,3 +102,111 @@ test("public nfl source throws RATE_LIMIT after exhausting strict 429 retries", 
   assert.equal((thrown as NflSourceError).code, "RATE_LIMIT");
   assert.equal(callCount, 3);
 });
+
+test("public nfl source blocks the 6th request in a rolling 60-second local window", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "test-key";
+
+  let callCount = 0;
+  globalThis.fetch = async () => {
+    callCount += 1;
+    return new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 1,
+            name: "Falcons",
+            abbreviation: "ATL",
+            city: "Atlanta",
+            conference: "NFC",
+            division: { name: "South" },
+          },
+        ],
+      }),
+      { status: 200 }
+    );
+  };
+
+  const nowRef = { value: 10_000 };
+  const source = new PublicNflSource({
+    requestWindowMs: 60_000,
+    requestWindowMax: 5,
+    nowProvider: () => nowRef.value,
+  });
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    process.env.BL_API_KEY = originalApiKey;
+  });
+
+  for (let i = 0; i < 5; i += 1) {
+    const teams = await source.getTeams();
+    assert.equal(teams.length, 1);
+  }
+
+  let thrown: unknown = undefined;
+  try {
+    await source.getTeams();
+    assert.fail("expected local request budget guard to throw");
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert.ok(thrown instanceof NflSourceError);
+  assert.equal((thrown as NflSourceError).code, "RATE_LIMIT");
+  assert.equal(callCount, 5);
+});
+
+test("public nfl source local request budget recovers after window expiry", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "test-key";
+
+  let callCount = 0;
+  globalThis.fetch = async () => {
+    callCount += 1;
+    return new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 1,
+            name: "Falcons",
+            abbreviation: "ATL",
+            city: "Atlanta",
+            conference: "NFC",
+            division: { name: "South" },
+          },
+        ],
+      }),
+      { status: 200 }
+    );
+  };
+
+  const nowRef = { value: 50_000 };
+  const source = new PublicNflSource({
+    requestWindowMs: 60_000,
+    requestWindowMax: 5,
+    nowProvider: () => nowRef.value,
+  });
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    process.env.BL_API_KEY = originalApiKey;
+  });
+
+  for (let i = 0; i < 5; i += 1) {
+    await source.getTeams();
+  }
+
+  await assert.rejects(
+    async () => source.getTeams(),
+    (error: unknown) => error instanceof NflSourceError && error.code === "RATE_LIMIT"
+  );
+  assert.equal(callCount, 5);
+
+  nowRef.value += 60_001;
+  const teams = await source.getTeams();
+  assert.equal(teams.length, 1);
+  assert.equal(callCount, 6);
+});

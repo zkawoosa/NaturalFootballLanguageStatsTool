@@ -2,6 +2,7 @@ import { NextResponse } from "next/server.js";
 
 import type { QueryRequestBody, QueryResponse } from "../../../lib/contracts/api.ts";
 import { createCanonicalStatsService } from "../../../lib/app/canonicalServiceFactory.ts";
+import { NflSourceError } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
 import type { CanonicalPlayerStat, CanonicalTeamStat } from "../../../lib/schema/canonical.ts";
 import { parseNflQuery, type ParsedQuery } from "../../../lib/parser/nlpParser.ts";
@@ -14,6 +15,8 @@ type QueryValidationError = {
 };
 
 let statsServiceFactory: () => ICanonicalStatsService = createCanonicalStatsService;
+const RATE_LIMIT_SUMMARY_MESSAGE =
+  "Due to data source constraints, we are limited to 5 queries per minute for now";
 
 export function setQueryStatsServiceFactoryForTests(
   factory: (() => ICanonicalStatsService) | null
@@ -105,16 +108,21 @@ async function buildQueryResponse(
       needsClarification: false,
       dataSource: "public",
     };
-  } catch {
+  } catch (error) {
+    const isRateLimited = error instanceof NflSourceError && error.code === "RATE_LIMIT";
     return {
       intent: parsed.intent,
       slots: parsed.slots as Record<string, unknown>,
       results: [],
-      summary: "Data source is temporarily unavailable. Please try again.",
+      summary: isRateLimited
+        ? RATE_LIMIT_SUMMARY_MESSAGE
+        : "Data source is temporarily unavailable. Please try again.",
       confidence: parsed.confidence,
       alternatives: [],
       needsClarification: true,
-      clarificationPrompt: "Try again in a moment or simplify your query.",
+      clarificationPrompt: isRateLimited
+        ? "Please wait a minute and try again."
+        : "Try again in a moment or simplify your query.",
     };
   }
 }
