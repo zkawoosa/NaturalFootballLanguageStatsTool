@@ -49,10 +49,7 @@ export type QueryErrorResponse = QueryResponseBase & {
   dataSource?: "public";
 };
 
-export type QueryResponse =
-  | QuerySuccessResponse
-  | QueryClarificationResponse
-  | QueryErrorResponse;
+export type QueryResponse = QuerySuccessResponse | QueryClarificationResponse | QueryErrorResponse;
 
 export type TeamSummary = {
   id: string;

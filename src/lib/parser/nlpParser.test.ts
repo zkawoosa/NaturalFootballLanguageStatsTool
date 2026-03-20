@@ -220,10 +220,20 @@ test("clarifies unsupported career scope queries", () => {
   const result = parseNflQuery("Passing yards leaders all time");
 
   assert.equal(result.intent, "leaders");
-  assert.equal(result.requiresClarification, true);
-  assert.equal(result.resolution, "clarify");
+  assert.equal(result.requiresClarification, false);
+  assert.equal(result.resolution, "unsupported");
   assert.equal(result.clarification?.reason, "unsupported_scope");
   assert.equal(result.clarification?.slot, "scope");
+});
+
+test("reports unsupported domain queries separately", () => {
+  const result = parseNflQuery("Top passing yards betting this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.requiresClarification, false);
+  assert.equal(result.resolution, "unsupported");
+  assert.equal(result.clarification?.reason, "unsupported_domain");
+  assert.equal(result.clarification?.slot, "intent");
 });
 
 test("captures unmatched alias telemetry tokens", () => {

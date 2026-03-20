@@ -36,7 +36,9 @@ export async function POST(request: Request) {
   return NextResponse.json(response, { status: 200 });
 }
 
-async function parseRequestBody(request: Request): Promise<QueryRequestBody | QueryValidationError> {
+async function parseRequestBody(
+  request: Request
+): Promise<QueryRequestBody | QueryValidationError> {
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -132,7 +134,12 @@ function buildNonAnswerResponse(parsed: ParsedQuery, alternatives: string[]): Qu
     intent: parsed.intent,
     slots: parsed.slots as Record<string, unknown>,
     results: [],
-    summary: parsed.resolution === "clarify" ? "" : "I can only answer NFL stat and summary queries right now.",
+    summary:
+      parsed.resolution === "clarify"
+        ? ""
+        : parsed.resolution === "unsupported"
+          ? "Unsupported query: this request is outside the supported NFL stats scope."
+          : "I can only answer NFL stat and summary queries right now.",
     confidence: parsed.confidence,
     alternatives,
   };
@@ -142,6 +149,17 @@ function buildNonAnswerResponse(parsed: ParsedQuery, alternatives: string[]): Qu
       ...base,
       needsClarification: true,
       clarificationPrompt: parsed.clarification?.prompt ?? "Please clarify your query.",
+    };
+  }
+
+  if (parsed.resolution === "unsupported") {
+    return {
+      ...base,
+      intent: "unknown",
+      needsClarification: true,
+      clarificationPrompt:
+        parsed.clarification?.prompt ??
+        "That query is outside the supported NFL stat and summary use cases.",
     };
   }
 
@@ -201,7 +219,8 @@ function validateStatCapability(parsed: ParsedQuery): StatCapabilityIssue | null
   ) {
     if (!TEAM_STAT_FIELD_MAP[stat]) {
       return {
-        prompt: "That stat is not supported for team stats yet. Try passingYards, rushingYards, or turnovers.",
+        prompt:
+          "That stat is not supported for team stats yet. Try passingYards, rushingYards, or turnovers.",
         alternatives: ["passingYards", "rushingYards", "turnovers"],
       };
     }

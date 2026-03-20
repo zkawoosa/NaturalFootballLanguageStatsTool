@@ -4,7 +4,9 @@ import test from "node:test";
 import { getTeamsResponse } from "./teamsService.ts";
 import type { ICanonicalStatsService } from "../data/statsRepository.ts";
 
-function createFakeCanonicalService(overrides: Partial<ICanonicalStatsService> = {}): ICanonicalStatsService {
+function createFakeCanonicalService(
+  overrides: Partial<ICanonicalStatsService> = {}
+): ICanonicalStatsService {
   return {
     getTeams: async () => [],
     getPlayers: async () => [],

@@ -15,7 +15,7 @@ import { InMemoryRequestCache, type CacheStats } from "./cacheStore.ts";
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") {
     const serialized = JSON.stringify(value);
-    return serialized ?? "\"__undefined__\"";
+    return serialized ?? '"__undefined__"';
   }
 
   if (Array.isArray(value)) {
@@ -25,7 +25,9 @@ function stableStringify(value: unknown): string {
   const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
     a.localeCompare(b)
   );
-  const normalized = entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`);
+  const normalized = entries.map(
+    ([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`
+  );
   return `{${normalized.join(",")}}`;
 }
 
@@ -114,11 +116,15 @@ export class CachedDataSource implements CacheAwareDataSource {
   }
 
   async getPlayers(query: PlayerQuery = {}): Promise<Player[]> {
-    return this.cache.getOrSet(buildCacheKey("players", query), async () => this.source.getPlayers(query));
+    return this.cache.getOrSet(buildCacheKey("players", query), async () =>
+      this.source.getPlayers(query)
+    );
   }
 
   async getGames(query: NflWeekQuery = {}): Promise<Game[]> {
-    return this.cache.getOrSet(buildCacheKey("games", query), async () => this.source.getGames(query));
+    return this.cache.getOrSet(buildCacheKey("games", query), async () =>
+      this.source.getGames(query)
+    );
   }
 
   async getPlayerStats(query: PlayerStatsQuery = {}): Promise<PlayerStat[]> {

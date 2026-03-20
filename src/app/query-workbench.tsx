@@ -19,7 +19,9 @@ const RECENT_QUERY_LIMIT = 8;
 
 function coerceRecentQueries(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
-  return input.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return input.filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0
+  );
 }
 
 function readRecentQueries(): string[] {
@@ -36,7 +38,10 @@ function readRecentQueries(): string[] {
 function writeRecentQueries(queries: string[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(RECENT_QUERY_KEY, JSON.stringify(queries.slice(0, RECENT_QUERY_LIMIT)));
+    window.localStorage.setItem(
+      RECENT_QUERY_KEY,
+      JSON.stringify(queries.slice(0, RECENT_QUERY_LIMIT))
+    );
   } catch {
     // Ignore storage errors.
   }
@@ -170,7 +175,9 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
     const homeScore = toDisplayValue(item.homeScore);
     const awayScore = toDisplayValue(item.awayScore);
     const scoreline =
-      homeScore || awayScore ? `${awayTeam} ${awayScore || "-"} @ ${homeTeam} ${homeScore || "-"}` : null;
+      homeScore || awayScore
+        ? `${awayTeam} ${awayScore || "-"} @ ${homeTeam} ${homeScore || "-"}`
+        : null;
 
     return (
       <article className="result-card">
@@ -208,9 +215,17 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
     function handleGlobalKeydown(event: KeyboardEvent): void {
       const target = event.target as HTMLElement | null;
       const isEditableTarget =
-        target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || !!target?.isContentEditable;
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        !!target?.isContentEditable;
 
-      if (event.key === "/" && !isEditableTarget && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (
+        event.key === "/" &&
+        !isEditableTarget &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
         event.preventDefault();
         queryInputRef.current?.focus();
       }
@@ -247,7 +262,10 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
 
       if (!response.ok) {
         const message =
-          payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+          payload &&
+          typeof payload === "object" &&
+          "error" in payload &&
+          typeof payload.error === "string"
             ? payload.error
             : `Request failed (${response.status}).`;
         setState({ status: "request_error", message });
@@ -394,10 +412,11 @@ function LoadedQueryState({
   isLoading: boolean;
   onSelectAlternative: (query: string) => void;
 }) {
+  const isUnsupported = response.summary.startsWith("Unsupported query:");
   if (response.needsClarification) {
     return (
       <div className="state-clarification">
-        <p className="state-title">Needs clarification</p>
+        <p className="state-title">{isUnsupported ? "Unsupported query" : "Needs clarification"}</p>
         <p>{response.clarificationPrompt}</p>
         {response.summary ? <p className="muted">{response.summary}</p> : null}
         {response.alternatives.length > 0 ? (

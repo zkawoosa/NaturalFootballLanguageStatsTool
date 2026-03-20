@@ -13,7 +13,9 @@ test.afterEach(() => {
   setQueryStatsServiceFactoryForTests(null);
 });
 
-function createFakeStatsService(overrides: Partial<ICanonicalStatsService> = {}): ICanonicalStatsService {
+function createFakeStatsService(
+  overrides: Partial<ICanonicalStatsService> = {}
+): ICanonicalStatsService {
   return {
     getTeams: async () => [],
     getPlayers: async () => [],
@@ -119,6 +121,39 @@ test("POST /api/query returns reject-style response for unsupported query", asyn
   assert.equal(body.intent, "unknown");
   assert.equal(body.needsClarification, true);
   assert.equal(typeof body.clarificationPrompt, "string");
+  assert.equal(getTeamStatsCalls, 0);
+});
+
+test("POST /api/query returns unsupported-domain response without hitting adapters", async () => {
+  let getTeamStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getTeamStats: async () => {
+        getTeamStatsCalls += 1;
+        return [];
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top passing yards betting this season" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "unknown");
+  assert.equal(body.needsClarification, true);
+  assert.equal(
+    body.summary,
+    "Unsupported query: this request is outside the supported NFL stats scope."
+  );
+  assert.equal(typeof body.clarificationPrompt, "string");
+  assert.equal(Array.isArray(body.alternatives), true);
+  assert.equal((body.alternatives as string[]).length, 0);
   assert.equal(getTeamStatsCalls, 0);
 });
 

@@ -31,7 +31,8 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
   const checkedAt = new Date().toISOString();
   const healthSource = source as CacheAwareSource;
   // Health checks intentionally bypass cache to avoid stale "healthy" status.
-  const probe = typeof healthSource.getTeamsFresh === "function" ? healthSource.getTeamsFresh : source.getTeams;
+  const probe =
+    typeof healthSource.getTeamsFresh === "function" ? healthSource.getTeamsFresh : source.getTeams;
 
   try {
     await probe.call(source);

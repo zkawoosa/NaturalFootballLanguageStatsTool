@@ -80,7 +80,10 @@ export const STAT_ALIASES: StatAlias[] = [
     examples: ["receiving touchdowns", "receiving td", "receiving tds", "rec td", "rec touchdowns"],
   },
   { canonical: "passingYards", examples: ["passing yards", "pass yards"] },
-  { canonical: "rushingYards", examples: ["rushing yards", "rush yards", "rushing offense", "rush offense"] },
+  {
+    canonical: "rushingYards",
+    examples: ["rushing yards", "rush yards", "rushing offense", "rush offense"],
+  },
   { canonical: "receivingYards", examples: ["receiving yards", "rec yards", "reception yards"] },
   { canonical: "interceptions", examples: ["interceptions", "ints", "interception"] },
   { canonical: "fumbles", examples: ["fumbles", "fumble"] },
@@ -88,7 +91,10 @@ export const STAT_ALIASES: StatAlias[] = [
   { canonical: "passerRating", examples: ["passer rating"] },
   { canonical: "penalties", examples: ["penalties", "penalty"] },
   { canonical: "personalFouls", examples: ["personal fouls", "personal foul"] },
-  { canonical: "unsportsmanlikeFouls", examples: ["unsportsmanlike fouls", "unsportsmanlike foul"] },
+  {
+    canonical: "unsportsmanlikeFouls",
+    examples: ["unsportsmanlike fouls", "unsportsmanlike foul"],
+  },
 ];
 
 export const STOP_WORDS = new Set([
