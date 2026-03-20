@@ -114,6 +114,7 @@ const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
   { cue: "best", direction: "desc" },
   { cue: "first", direction: "desc" },
   { cue: "biggest", direction: "desc" },
+  { cue: "longest", direction: "desc" },
 ];
 
 const UNKNOWN_COMPARATOR_CUES = [
@@ -128,9 +129,9 @@ const CAREER_SCOPE_CUES = /\b(all\s+time|career|ever|historical|history)\b/i;
 const SINCE_YEAR_CAREER_SCOPE_RE = /\bsince\s+(\d{4})\b/i;
 const PER_SEASON_SINCE_YEAR_RE = /\bper\s+season\s+since\s+\d{4}\b/i;
 const UNSUPPORTED_CONSTRAINT_CUES =
-  /\b(non\s+quarterbacks?|without|over\s+\d+|under\s+\d+|first\s+two\s+seasons?|special\s+teams|defensive\s+touchdowns?)\b/i;
+  /\b(non\s+quarterbacks?|without|over\s+\d+|under\s+\d+|first\s+two\s+seasons?|special\s+teams|defensive\s+touchdowns?|possible\s+games?)\b/i;
 const UNSUPPORTED_DOMAIN_CUES =
-  /\b(all\s+pros?|all\s*-\s*pros?|\bmvp\b|\bbetting\b|\bodds\b|\baverage\b|\bratio\b|longest\s+plays?|\bunsportsmanlike\b)\b/i;
+  /\b(all\s+pros?|all\s*-\s*pros?|\bmvp\b|\bbetting\b|\bodds\b|\baverage\b|\bratio\b|longest\s+plays?|\bunsportsmanlike\b|\bdrops?\b)\b/i;
 
 const NON_ALIAS_QUERY_TERMS = new Set([
   "team",
@@ -281,12 +282,11 @@ export function parseNflQuery(input: string): ParsedQuery {
 
   const stat = mapStatAlias(normalized);
   if (stat) slots.stat = stat;
-  slots.scopeType = resolveScopeType(normalized, slots);
-  if (slots.stat && slots.sort === null && shouldDefaultLeadersSort(normalized)) {
+  const intent = detectIntent(normalized, slots);
+  slots.scopeType = resolveScopeType(normalized, slots, intent);
+  if (intent === "leaders" && slots.sort === null && shouldDefaultLeadersSort(normalized)) {
     slots.sort = "desc";
   }
-
-  const intent = detectIntent(normalized, slots);
   const confidence = estimateConfidence(intent, slots, ambiguities.length > 0, ambiguities);
   const clarification = buildClarification(intent, slots, ambiguities, confidence);
   const resolution = resolveResolution(confidence, clarification);
@@ -426,6 +426,14 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "compare";
   }
 
+  if (isUnsupportedUnknownDomain(value)) {
+    return "unknown";
+  }
+
+  if (isUnsupportedLeadersDomain(value) || looksLikeUnsupportedLeadersQuery(value)) {
+    return "leaders";
+  }
+
   if (/\bteam\s+stats?\b/.test(value)) {
     return "team_stat";
   }
@@ -454,6 +462,7 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     /\bworst\b/.test(value) ||
     /\bfewest\b/.test(value) ||
     /\bleast\b/.test(value) ||
+    /\bbottom\b/.test(value) ||
     /\bfirst\b/.test(value) ||
     /\blast\b/.test(value) ||
     /\bleader\b/.test(value)
@@ -493,14 +502,55 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
   ) {
     return "weekly_summary";
   }
-  if (
-    slots.stat &&
-    (slots.scopeType === "week" || slots.scopeType === "season" || slots.scopeType === "career")
-  ) {
+  if (slots.stat && hasResolvableScopeCue(value, slots)) {
     return "leaders";
   }
 
   return "unknown";
+}
+
+function isUnsupportedUnknownDomain(value: string): boolean {
+  return /\bbetting\b|\bodds\b|\bmvp\b/.test(value);
+}
+
+function isUnsupportedLeadersDomain(value: string): boolean {
+  if (!UNSUPPORTED_DOMAIN_CUES.test(value)) return false;
+  return !isUnsupportedUnknownDomain(value);
+}
+
+function looksLikeUnsupportedLeadersQuery(value: string): boolean {
+  if (UNSUPPORTED_CONSTRAINT_CUES.test(value)) {
+    return true;
+  }
+
+  if (/\bevery\b/.test(value) && /\btouchdowns?\b|\bplays?\b|\bfouls?\b/.test(value)) {
+    return true;
+  }
+
+  if (
+    /\bwins?\b|\btouchdowns?\b|\btds?\b|\bplays?\b|\bfouls?\b|\bgames?\s+played\b/.test(value) &&
+    /\bsince\s+\d{4}\b|\ball\s+time\b|\bever\b|\bhistory\b|\bby\s+year\b/.test(value)
+  ) {
+    return true;
+  }
+
+  if (/\bplayers?\s+with\b/.test(value) && /\btouchdowns?\b|\btds?\b|\bwins?\b/.test(value)) {
+    return true;
+  }
+
+  return false;
+}
+
+function hasResolvableScopeCue(value: string, slots: QuerySlot): boolean {
+  if (slots.week !== undefined || slots.season !== undefined) {
+    return true;
+  }
+
+  if (isCareerScope(value)) {
+    return true;
+  }
+
+  return /\bweek\b|\bweekly\b|\bseason\b|\bseasonal\b/.test(value);
 }
 
 function tokenizeEntityWords(value: string): string[] {
@@ -544,7 +594,16 @@ function shouldTrackUnmatchedAliasTokens(intent: NflIntent, normalizedQuery: str
 }
 
 function resolveComparator(value: string): ComparatorResolution {
+  const ignoreFirstAsSortCue =
+    /\bfirst\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:seasons?|weeks?|years?|games?)\b/.test(
+      value
+    );
+
   for (const entry of COMPARATOR_LEXICON) {
+    if (ignoreFirstAsSortCue && entry.cue === "first") {
+      continue;
+    }
+
     if (includesPhrase(value, entry.cue)) {
       return {
         sort: entry.direction,
@@ -622,6 +681,16 @@ function buildClarification(
     };
   }
 
+  const unsupportedScope = detectUnsupportedScopeOrConstraint(intent, slots, slots.raw);
+  if (unsupportedScope) {
+    return {
+      reason: "unsupported_scope",
+      prompt: unsupportedScope.prompt,
+      slot: unsupportedScope.slot,
+      confidence: Number(confidence.toFixed(2)),
+    };
+  }
+
   if (ambiguities.length > 0) {
     const primary = ambiguities[0];
     return {
@@ -639,16 +708,6 @@ function buildClarification(
       reason: "missing_context",
       prompt: missingContext.prompt,
       slot: missingContext.slot,
-      confidence: Number(confidence.toFixed(2)),
-    };
-  }
-
-  const unsupportedScope = detectUnsupportedScopeOrConstraint(intent, slots, slots.raw);
-  if (unsupportedScope) {
-    return {
-      reason: "unsupported_scope",
-      prompt: unsupportedScope.prompt,
-      slot: unsupportedScope.slot,
       confidence: Number(confidence.toFixed(2)),
     };
   }
@@ -762,11 +821,12 @@ function getCurrentSeason(): number {
   return now.getUTCMonth() >= 8 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
 }
 
-function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | "career" | null {
-  if (
-    PER_SEASON_SINCE_YEAR_RE.test(value) ||
-    (slots.season !== undefined && /\bsince\s+\d{4}/i.test(value))
-  ) {
+function resolveScopeType(
+  value: string,
+  slots: QuerySlot,
+  intent: NflIntent
+): "week" | "season" | "career" | null {
+  if (PER_SEASON_SINCE_YEAR_RE.test(value)) {
     return "season";
   }
 
@@ -778,6 +838,8 @@ function resolveScopeType(value: string, slots: QuerySlot): "week" | "season" | 
   if (slots.season !== undefined) return "season";
   if (/\bweek\b/.test(value) || /\bweekly\b/.test(value)) return "week";
   if (/\bseason\b/.test(value) || /\bseasonal\b/.test(value)) return "season";
+  if ((/\boffense\b/.test(value) || /\bdefense\b/.test(value)) && intent === "leaders")
+    return "season";
   if (/\bmatchups?\b/.test(value) || /\bschedule\b/.test(value) || /\brecap\b/.test(value))
     return "week";
   if (
@@ -837,7 +899,7 @@ function detectUnsupportedScopeOrConstraint(
     return null;
   }
 
-  if (CAREER_SCOPE_CUES.test(normalized)) {
+  if (isCareerScope(normalized)) {
     return {
       slot: "scope",
       prompt:

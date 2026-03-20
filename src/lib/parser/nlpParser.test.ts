@@ -226,14 +226,70 @@ test("clarifies unsupported career scope queries", () => {
   assert.equal(result.clarification?.slot, "scope");
 });
 
+test("treats since-year leaderboard phrasing as career scope when not per-season", () => {
+  const result = parseNflQuery("Passing yards leaders since 2020");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.scopeType, "career");
+  assert.equal(result.slots.season, 2020);
+  assert.equal(result.resolution, "unsupported");
+});
+
+test("falls back to leaders intent for unsupported historical stat phrasing", () => {
+  const result = parseNflQuery("Every defensive touchdown since 2020");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.scopeType, "career");
+  assert.equal(result.resolution, "unsupported");
+});
+
 test("reports unsupported domain queries separately", () => {
-  const result = parseNflQuery("Top passing yards betting this season");
+  const result = parseNflQuery("Top average passer rating this season");
 
   assert.equal(result.intent, "leaders");
   assert.equal(result.requiresClarification, false);
   assert.equal(result.resolution, "unsupported");
   assert.equal(result.clarification?.reason, "unsupported_domain");
   assert.equal(result.clarification?.slot, "intent");
+});
+
+test("defaults leader sort even when stat resolution fails", () => {
+  const result = parseNflQuery("Tackle for loss leader all time");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.resolution, "unsupported");
+});
+
+test("does not treat temporal first phrase as a leaderboard sort cue", () => {
+  const result = parseNflQuery(
+    "Pass rushers with over 20 career sacks in their first two seasons."
+  );
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.sort, null);
+  assert.equal(result.slots.scopeType, "career");
+  assert.equal(result.resolution, "unsupported");
+});
+
+test("treats unsupported drop leaders query as unsupported instead of missing stat clarification", () => {
+  const result = parseNflQuery("Drop leaders in 2025.");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.resolution, "unsupported");
+  assert.equal(result.clarification?.reason, "unsupported_domain");
+});
+
+test("defaults offense leaderboard phrasing to season scope", () => {
+  const result = parseNflQuery("Which team is the worst rushing offense");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "rushingYards");
+  assert.equal(result.slots.scopeType, "season");
+  assert.equal(result.slots.sort, "asc");
+  assert.equal(result.resolution, "answer");
 });
 
 test("captures unmatched alias telemetry tokens", () => {
