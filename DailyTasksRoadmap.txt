@@ -18,7 +18,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Confirm failure handling for timeout / 429 / 5xx / empty responses.
 - [X] Add Day 2 runtime logging template for data-source calls (timestamp, endpoint, status, latency, source, retries, rate-limit hits).
 - [X] Add source logger utility (`src/lib/logger.ts`) and wire it into source adapter calls, with stdout fallback + optional file sink.
-- [ ] Deliverable: source decision + raw samples + risk list.
+- [X] Deliverable: source decision + raw samples + risk list.
 
 ### Day 3: Canonical schema v1
 - [X] Define canonical entities: `team`, `player`, `game`, `teamStat`, `playerStat` (drafted in `src/lib/schema/canonical.ts`).
@@ -38,8 +38,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Day 6: QA corpus baseline [X]
 - [X] Enforce review priorities:
-  - [ ] P0/P1 issues must be reported to user and require explicit permission before merge.
-  - [ ] P2/P3 are auto-corrected before the next checkpoint.
+  - [X] P0/P1 issues must be reported to user and require explicit permission before merge.
+  - [X] P2/P3 are auto-corrected before the next checkpoint.
 - [X] Add linting (e.g., npm script + baseline rules) before corpus completion.
 
 ### Day 7: Environment + workflow
@@ -58,11 +58,12 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Day 10: Workflow protocol
 - [X] Scaffold Next.js + TypeScript.
 - [X] Add folders/contracts from the spec and env config only.
-- [X] Define daily workflow: one-task scope, one-to-two files max, one success check.
+- [X] Define daily workflow and commit checkpoint rules.
 - Daily workflow (1 hour/day):
 - Pick one scoped task with a clear done condition before coding.
 - Touch at most two files.
-- Run exactly one primary success check for that task.
+- Run task-specific validation while working.
+- Before each commit: run `lint`, `test`, code review, `npm run dev`, and update the roadmap if project status changed before suggesting a commit message.
 - If blocked for more than 15 minutes, capture blocker + next action and stop.
 
 ### Day 11–12: Repo + contracts in code
@@ -82,7 +83,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Set confidence thresholds for `answer` vs `clarify` vs `reject`.
 - [X] Add parser regression tests for ambiguity and low-confidence flows.
 
-### Tomorrow (next session): Residual-risk mitigation
+### Residual-risk mitigation [X]
 - [X] Add telemetry logging for unmatched alias tokens.
 - [X] Add telemetry logging for unknown comparator phrases.
 - [X] Expand comparator lexicon mapping and add parser regression tests.
@@ -94,17 +95,17 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Return structured response (`results`, `summary`, `needsClarification`).
 
 ### Day 21–23: UI MVP
-- [ ] Build search UI, result cards/table, loading/error/empty states.
-- [ ] Add recent query history and mobile layout baseline.
+- [X] Build search UI, result cards/table, loading/error/empty states.
+- [X] Add recent query history and mobile layout baseline.
 
 ### Day 24–25: Query coverage expansion
-- [ ] Add more NL patterns: leaders, team/game, player seasonal and weekly views.
-- [ ] Add sort/limit filters.
+- [X] Add more NL patterns: leaders, team/game, player seasonal and weekly views.
+- [X] Add sort/limit filters.
 
 ### Day 26–27: Performance + hardening
-- [ ] Add server-side cache + throttle safeguards for upstream 5 requests/min free-tier limits.
-- [ ] Add caching knobs, timeout/retry tuning, optional autocomplete endpoints.
-- [ ] Run parser corpus against implementation and patch top failures.
+- [X] Add server-side cache + throttle safeguards for upstream 5 requests/min free-tier limits.
+- [X] Add caching knobs, timeout/retry tuning, optional autocomplete endpoints.
+- [X] Run parser corpus against implementation and patch top failures.
 
 ### Day 28: Final QA + deploy prep
 - [ ] Reduce top parser corpus mismatch buckets (scopeType:career, intent:leaders, sort:desc, state:clarification, state:error) and rerun corpus to record delta.
@@ -119,9 +120,11 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Next 3 priorities
 
 ## Residual Risks (living section)
-- Last updated: 2026-03-10
+- Last updated: 2026-03-20
 - [X] Alias coverage baseline expanded to 32 teams and >=500 players, and broad false-positive team tokens (`bay`, `las`, `new`, `city`) were removed.
   - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
+- [X] Unsupported-domain and unsupported-scope queries now resolve to an explicit unsupported state instead of falling through clarification.
+  - Next mitigation: expand unsupported-domain cue coverage as the corpus grows.
 - [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
   - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
 
