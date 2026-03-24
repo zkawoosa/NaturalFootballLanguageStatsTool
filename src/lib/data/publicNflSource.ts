@@ -339,11 +339,14 @@ export class PublicNflSource implements IDataSource {
 
   private toParams(query: Record<string, unknown>): URLSearchParams {
     const params = new URLSearchParams();
-    if (query.team) params.set("team", query.team);
-    if (query.search) params.set("search", query.search);
+    const team = this.asString(query.team);
+    const search = this.asString(query.search);
+    const seasonType = this.asString(query.seasonType);
+    if (team) params.set("team", team);
+    if (search) params.set("search", search);
     if (query.season) params.set("season", String(query.season));
     if (query.week) params.set("week", String(query.week));
-    if (query.seasonType) params.set("season_type", query.seasonType);
+    if (seasonType) params.set("season_type", seasonType);
     if (query.perPage) params.set("per_page", String(query.perPage));
     if (query.page) params.set("page", String(query.page));
     return params;

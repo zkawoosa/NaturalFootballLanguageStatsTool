@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getSourceHealth } from "@/lib/app/appShellService.ts";
 import { createDataSource } from "@/lib/app/sourceFactory.ts";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const source = createDataSource();
   const status = await getSourceHealth(source);

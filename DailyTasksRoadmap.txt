@@ -113,14 +113,16 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
   - Delta vs 2026-03-19 snapshot after parser fixes + corpus expectation audit: `intent:leaders` 7 -> 0, `scopeType:career` 7 -> 0, `sort:desc` 4 -> 0, `state:clarification` 4 -> 0, `state:error` 3 -> 0.
   - Unsupported-state audit updated stale corpus rows that still expected `clarification` for explicitly unsupported queries, and the corpus now evaluates cleanly.
 - [ ] Run full manual QA pass on corpus.
-- [ ] Prepare deploy config and README.
+- [X] Prepare deploy config.
+- [ ] Prepare README.
+- [ ] Make hosting health checks cache-aware or internal-only so deploy probes do not consume upstream request budget.
+- [X] Remove build-time source-health snapshot from homepage and move source-health checks to a client-triggered flow.
+- [X] Investigate and remove remaining build-time upstream `teams` requests during static generation.
+- [ ] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
 - [ ] Deploy preview, smoke test, record known limitations.
-
-## Weekly wrap block (end of each week)
-- [ ] What worked
-- [ ] What broke
-- [ ] What to defer
-- [ ] Next 3 priorities
+  - Current deploy blockers addressed in code:
+    - Next.js route modules cannot export test helpers, so `/api/query` test injection was moved out of `src/app/api/query/route.ts` into a separate helper module.
+    - The repo uses explicit `.ts` import specifiers for the Node ESM test/runtime flow, so `tsconfig.json` now enables `allowImportingTsExtensions` for `next build` compatibility.
 
 ## Residual Risks (living section)
 - Last updated: 2026-03-20

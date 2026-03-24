@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server.js";
 
 import type { QueryRequestBody, QueryResponse } from "../../../lib/contracts/api.ts";
-import { createCanonicalStatsService } from "../../../lib/app/canonicalServiceFactory.ts";
 import { NflSourceError } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
 import type { CanonicalPlayerStat, CanonicalTeamStat } from "../../../lib/schema/canonical.ts";
 import { parseNflQuery, type ParsedQuery } from "../../../lib/parser/nlpParser.ts";
+import { getQueryStatsService } from "./queryStatsServiceFactory.ts";
 
 type QueryValidationErrorCode = "INVALID_JSON" | "INVALID_BODY" | "INVALID_QUERY";
 
@@ -14,15 +14,8 @@ type QueryValidationError = {
   code: QueryValidationErrorCode;
 };
 
-let statsServiceFactory: () => ICanonicalStatsService = createCanonicalStatsService;
 const RATE_LIMIT_SUMMARY_MESSAGE =
   "Due to data source constraints, we are limited to 5 queries per minute for now";
-
-export function setQueryStatsServiceFactoryForTests(
-  factory: (() => ICanonicalStatsService) | null
-): void {
-  statsServiceFactory = factory ?? createCanonicalStatsService;
-}
 
 export async function POST(request: Request) {
   const body = await parseRequestBody(request);
@@ -31,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   const parsedQuery = parseNflQuery(body.query.trim());
-  const service = statsServiceFactory();
+  const service = getQueryStatsService();
   const response = await buildQueryResponse(parsedQuery, service);
   return NextResponse.json(response, { status: 200 });
 }

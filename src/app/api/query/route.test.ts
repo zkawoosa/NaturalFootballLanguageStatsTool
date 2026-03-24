@@ -3,7 +3,8 @@ import test from "node:test";
 
 import { NflSourceError } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
-import { POST, setQueryStatsServiceFactoryForTests } from "./route.ts";
+import { setQueryStatsServiceFactoryForTests } from "./queryStatsServiceFactory.ts";
+import { POST } from "./route.ts";
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   return (await response.json()) as Record<string, unknown>;

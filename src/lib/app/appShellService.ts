@@ -64,3 +64,7 @@ export async function getAppShellViewModel(source: IDataSource): Promise<AppShel
     samplePrompts: [...SAMPLE_PROMPTS],
   };
 }
+
+export function getSamplePrompts(): string[] {
+  return [...SAMPLE_PROMPTS];
+}
