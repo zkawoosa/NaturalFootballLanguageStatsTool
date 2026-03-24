@@ -114,7 +114,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
   - Unsupported-state audit updated stale corpus rows that still expected `clarification` for explicitly unsupported queries, and the corpus now evaluates cleanly.
 - [ ] Run full manual QA pass on corpus.
 - [X] Prepare deploy config.
-- [ ] Prepare README.
+- [X] Prepare README.
 - [ ] Make hosting health checks cache-aware or internal-only so deploy probes do not consume upstream request budget.
 - [X] Remove build-time source-health snapshot from homepage and move source-health checks to a client-triggered flow.
 - [X] Investigate and remove remaining build-time upstream `teams` requests during static generation.
