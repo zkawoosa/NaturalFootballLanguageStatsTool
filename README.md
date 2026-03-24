@@ -9,7 +9,7 @@ The current MVP supports player stats, team stats, leaderboard-style queries, co
 - TypeScript
 - Next.js 14
 - React 18
-- Node.js 20
+- Node.js 24
 - Next.js App Router
 - Next.js Route Handlers
 - Server-side `fetch`
@@ -96,7 +96,7 @@ The app includes:
 
 ### Prerequisites
 
-- Node.js `20.x`
+- Node.js `24.x`
 - npm `10.x`
 
 ### Install
@@ -222,7 +222,7 @@ Use a Node web service with:
 
 Recommended environment variables:
 
-- `NODE_VERSION=20`
+- `NODE_VERSION=24`
 - `BL_API_KEY=your_api_key`
 - `NFL_LOG_TO_FILE=0`
 - `NFL_SOURCE=balldontlie`

@@ -2,7 +2,7 @@
   "name": "nfl-query",
   "version": "0.1.0",
   "engines": {
-    "node": ">=20 <21",
+    "node": ">=24 <25",
     "npm": ">=10 <11"
   },
   "private": true,
