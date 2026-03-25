@@ -36,6 +36,14 @@ export type QuerySuccessResponse = QueryResponseBase & {
   clarificationPrompt?: undefined;
 };
 
+export type QuerySourceErrorResponse = QueryResponseBase & {
+  needsClarification: false;
+  sourceError: true;
+  dataSource: "public";
+  errorCode: "RATE_LIMIT" | "SOURCE_UNAVAILABLE";
+  clarificationPrompt?: undefined;
+};
+
 export type QueryClarificationResponse = QueryResponseBase & {
   needsClarification: true;
   clarificationPrompt: string;
@@ -49,7 +57,11 @@ export type QueryErrorResponse = QueryResponseBase & {
   dataSource?: "public";
 };
 
-export type QueryResponse = QuerySuccessResponse | QueryClarificationResponse | QueryErrorResponse;
+export type QueryResponse =
+  | QuerySuccessResponse
+  | QueryClarificationResponse
+  | QuerySourceErrorResponse
+  | QueryErrorResponse;
 
 export type TeamSummary = {
   id: string;

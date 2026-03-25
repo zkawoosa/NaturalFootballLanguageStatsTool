@@ -16,6 +16,8 @@ type QueryValidationError = {
 
 const RATE_LIMIT_SUMMARY_MESSAGE =
   "Due to data source constraints, we are limited to 5 queries per minute for now";
+const SOURCE_UNAVAILABLE_SUMMARY_MESSAGE =
+  "Data source is temporarily unavailable. Please try again.";
 
 export async function POST(request: Request) {
   const body = await parseRequestBody(request);
@@ -109,15 +111,14 @@ async function buildQueryResponse(
       intent: parsed.intent,
       slots: parsed.slots as Record<string, unknown>,
       results: [],
-      summary: isRateLimited
-        ? RATE_LIMIT_SUMMARY_MESSAGE
-        : "Data source is temporarily unavailable. Please try again.",
+      summary: isRateLimited ? RATE_LIMIT_SUMMARY_MESSAGE : SOURCE_UNAVAILABLE_SUMMARY_MESSAGE,
       confidence: parsed.confidence,
       alternatives: [],
-      needsClarification: true,
-      clarificationPrompt: isRateLimited
-        ? "Please wait a minute and try again."
-        : "Try again in a moment or simplify your query.",
+      needsClarification: false,
+      dataSource: "public",
+      sourceError: true,
+      errorCode: isRateLimited ? "RATE_LIMIT" : "SOURCE_UNAVAILABLE",
+      clarificationPrompt: undefined,
     };
   }
 }

@@ -119,6 +119,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Remove build-time source-health snapshot from homepage and move source-health checks to a client-triggered flow.
 - [X] Investigate and remove remaining build-time upstream `teams` requests during static generation.
 - [X] Address external review findings: clarification context wiring, season aggregation, pagination completeness, and truncation safeguards.
+- [X] Separate source failures from clarification so unsupported upstream failures show as a distinct state in API responses and UI.
 - [ ] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
 - [X] Add GitHub Actions CI for format, lint, tests, and build.
 - [ ] Deploy preview, smoke test, record known limitations.
@@ -127,7 +128,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
     - The repo uses explicit `.ts` import specifiers for the Node ESM test/runtime flow, so `tsconfig.json` now enables `allowImportingTsExtensions` for `next build` compatibility.
 
 ### Long Term Tasks
-- [ ] Separate upstream/source failures from clarification in the UI so temporary data issues do not render as "Needs clarification".
+- [X] Separate upstream/source failures from clarification in the UI so temporary data issues do not render as "Needs clarification".
 - [ ] UI overhaul: redesign the website for a stronger production-quality visual system and layout.
 
 ## Residual Risks (living section)

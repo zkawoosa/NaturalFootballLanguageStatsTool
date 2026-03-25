@@ -394,9 +394,10 @@ test("POST /api/query returns upstream-failure state with parsed intent", async 
 
   assert.equal(response.status, 200);
   assert.equal(body.intent, "leaders");
-  assert.equal(body.needsClarification, true);
+  assert.equal(body.needsClarification, false);
   assert.equal(body.summary, "Data source is temporarily unavailable. Please try again.");
-  assert.equal(typeof body.clarificationPrompt, "string");
+  assert.equal(body.sourceError, true);
+  assert.equal(body.errorCode, "SOURCE_UNAVAILABLE");
   assert.equal(getPlayerStatsCalls, 1);
 });
 
@@ -422,12 +423,13 @@ test("POST /api/query returns rate-limit fallback message when source budget is 
 
   assert.equal(response.status, 200);
   assert.equal(body.intent, "leaders");
-  assert.equal(body.needsClarification, true);
+  assert.equal(body.needsClarification, false);
   assert.equal(
     body.summary,
     "Due to data source constraints, we are limited to 5 queries per minute for now"
   );
-  assert.equal(body.clarificationPrompt, "Please wait a minute and try again.");
+  assert.equal(body.sourceError, true);
+  assert.equal(body.errorCode, "RATE_LIMIT");
   assert.equal(getPlayerStatsCalls, 1);
 });
 
