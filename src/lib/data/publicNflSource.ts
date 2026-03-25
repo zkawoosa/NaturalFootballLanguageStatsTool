@@ -216,8 +216,7 @@ export class PublicNflSource implements IDataSource {
     this.circuitOpenUntilMs = 0;
     this.circuitBreakerFailureThreshold =
       opts?.circuitBreakerFailureThreshold ?? DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
-    this.circuitBreakerWindowMs =
-      opts?.circuitBreakerWindowMs ?? DEFAULT_CIRCUIT_BREAKER_WINDOW_MS;
+    this.circuitBreakerWindowMs = opts?.circuitBreakerWindowMs ?? DEFAULT_CIRCUIT_BREAKER_WINDOW_MS;
     this.circuitBreakerCooldownMs =
       opts?.circuitBreakerCooldownMs ?? DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS;
     this.nowProvider = opts?.nowProvider ?? (() => Date.now());
@@ -439,9 +438,7 @@ export class PublicNflSource implements IDataSource {
     trimmedFailures.push(now);
     this.circuitFailureTimestampsMs = trimmedFailures;
 
-    if (
-      trimmedFailures.length >= this.circuitBreakerFailureThreshold
-    ) {
+    if (trimmedFailures.length >= this.circuitBreakerFailureThreshold) {
       this.circuitOpenUntilMs = now + this.circuitBreakerCooldownMs;
       this.circuitFailureTimestampsMs = [];
     }

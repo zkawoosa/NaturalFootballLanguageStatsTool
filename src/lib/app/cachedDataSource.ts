@@ -115,10 +115,7 @@ export class CachedDataSource implements CacheAwareDataSource {
     return result;
   }
 
-  private async getFromCache<T>(
-    key: string,
-    loader: () => Promise<T>
-  ): Promise<T> {
+  private async getFromCache<T>(key: string, loader: () => Promise<T>): Promise<T> {
     const { value, stale } = await this.cache.getOrSetWithStaleFallback(key, loader, {
       allowStale: true,
     });
@@ -145,7 +142,9 @@ export class CachedDataSource implements CacheAwareDataSource {
   }
 
   async getGames(query: NflWeekQuery = {}): Promise<Game[]> {
-    return this.getFromCache(buildCacheKey("games", query), async () => this.source.getGames(query));
+    return this.getFromCache(buildCacheKey("games", query), async () =>
+      this.source.getGames(query)
+    );
   }
 
   async getPlayerStats(query: PlayerStatsQuery = {}): Promise<PlayerStat[]> {

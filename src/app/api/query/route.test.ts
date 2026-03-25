@@ -470,27 +470,28 @@ test("POST /api/query returns rate-limit fallback message when source budget is 
 });
 
 test("POST /api/query surfaces stale cached results when service indicates fallback", async () => {
-  setQueryStatsServiceFactoryForTests(() =>
-    ({
-      getTeams: async () => [],
-      getPlayers: async () => [],
-      getGames: async () => [],
-      getPlayerStats: async () => [
-        {
-          id: "p1",
-          source: "balldontlie",
-          sourceId: "p1",
-          playerId: "100",
-          teamId: "10",
-          scope: "season",
-          season: 2025,
-          week: null,
-          passYards: 111,
-        } as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>[number],
-      ],
-      getTeamStats: async () => [],
-      consumeDataStaleHint: () => true,
-    }) as ICanonicalStatsService
+  setQueryStatsServiceFactoryForTests(
+    () =>
+      ({
+        getTeams: async () => [],
+        getPlayers: async () => [],
+        getGames: async () => [],
+        getPlayerStats: async () => [
+          {
+            id: "p1",
+            source: "balldontlie",
+            sourceId: "p1",
+            playerId: "100",
+            teamId: "10",
+            scope: "season",
+            season: 2025,
+            week: null,
+            passYards: 111,
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>[number],
+        ],
+        getTeamStats: async () => [],
+        consumeDataStaleHint: () => true,
+      }) as ICanonicalStatsService
   );
 
   const request = new Request("http://localhost/api/query", {

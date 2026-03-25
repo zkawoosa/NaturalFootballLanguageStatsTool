@@ -445,15 +445,17 @@ function LoadedQueryState({
   }
 
   if (isSourceFailure) {
-        return (
-          <div className="state-error">
-            <p className="state-title">Source issue</p>
-            <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
+    return (
+      <div className="state-error">
+        <p className="state-title">Source issue</p>
+        <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
         {(response as { sourceErrorMessage?: string }).sourceErrorMessage ? (
-          <p className="muted">{(response as { sourceErrorMessage?: string }).sourceErrorMessage}</p>
+          <p className="muted">
+            {(response as { sourceErrorMessage?: string }).sourceErrorMessage}
+          </p>
         ) : null}
-          </div>
-        );
+      </div>
+    );
   }
 
   if (response.dataStale) {
