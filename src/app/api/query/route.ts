@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json(body, { status: 400 });
   }
 
-  const parsedQuery = parseNflQuery(body.query.trim());
+  const parsedQuery = applyQueryContext(parseNflQuery(body.query.trim()), body.context);
   const service = getQueryStatsService();
   const response = await buildQueryResponse(parsedQuery, service);
   return NextResponse.json(response, { status: 200 });
@@ -290,13 +290,16 @@ async function hydrateTeamStatResults(
   const selectedTeam = parsed.slots.teams[0];
   const team = findTeam(selectedTeam, teamLookup);
   const statField = parsed.slots.stat ? TEAM_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
-  const teamStats = await service.getTeamStats({
-    season: parsed.slots.season,
-    week: parsed.slots.week,
-    seasonType: parsed.slots.seasonType,
-    teamId: team?.id,
-    team: team?.id ?? selectedTeam,
-  });
+  const teamStats = maybeAggregateTeamStats(
+    parsed,
+    await service.getTeamStats({
+      season: parsed.slots.season,
+      week: parsed.slots.week,
+      seasonType: parsed.slots.seasonType,
+      teamId: team?.id,
+      team: team?.id ?? selectedTeam,
+    })
+  );
 
   const sorted = sortByStatValue(teamStats, statField, parsed.slots.sort);
   const top = parsed.slots.limit ? sorted.slice(0, parsed.slots.limit) : sorted;
@@ -323,13 +326,16 @@ async function hydratePlayerStatResults(
 ): Promise<QueryHydration> {
   const playerSearch = parsed.slots.players[0] ?? undefined;
   const statField = parsed.slots.stat ? PLAYER_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
-  const playerStats = await service.getPlayerStats({
-    season: parsed.slots.season,
-    week: parsed.slots.week,
-    seasonType: parsed.slots.seasonType,
-    playerSearch,
-    search: playerSearch,
-  });
+  const playerStats = maybeAggregatePlayerStats(
+    parsed,
+    await service.getPlayerStats({
+      season: parsed.slots.season,
+      week: parsed.slots.week,
+      seasonType: parsed.slots.seasonType,
+      playerSearch,
+      search: playerSearch,
+    })
+  );
 
   const sorted = sortByStatValue(playerStats, statField, parsed.slots.sort);
   const top = parsed.slots.limit ? sorted.slice(0, parsed.slots.limit) : sorted;
@@ -373,13 +379,16 @@ async function hydrateCompareResults(
     const compareResults = [];
     for (const teamAlias of parsed.slots.teams.slice(0, 2)) {
       const team = findTeam(teamAlias, teamLookup);
-      const rows = await service.getTeamStats({
-        season: parsed.slots.season,
-        week: parsed.slots.week,
-        seasonType: parsed.slots.seasonType,
-        teamId: team?.id,
-        team: team?.id ?? teamAlias,
-      });
+      const rows = maybeAggregateTeamStats(
+        parsed,
+        await service.getTeamStats({
+          season: parsed.slots.season,
+          week: parsed.slots.week,
+          seasonType: parsed.slots.seasonType,
+          teamId: team?.id,
+          team: team?.id ?? teamAlias,
+        })
+      );
       const best = sortByStatValue(rows, statField, parsed.slots.sort)[0];
       if (!best) continue;
       compareResults.push({
@@ -402,13 +411,16 @@ async function hydrateCompareResults(
     const statField = parsed.slots.stat ? PLAYER_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
     const compareResults = [];
     for (const playerName of parsed.slots.players.slice(0, 2)) {
-      const rows = await service.getPlayerStats({
-        season: parsed.slots.season,
-        week: parsed.slots.week,
-        seasonType: parsed.slots.seasonType,
-        playerSearch: playerName,
-        search: playerName,
-      });
+      const rows = maybeAggregatePlayerStats(
+        parsed,
+        await service.getPlayerStats({
+          season: parsed.slots.season,
+          week: parsed.slots.week,
+          seasonType: parsed.slots.seasonType,
+          playerSearch: playerName,
+          search: playerName,
+        })
+      );
       const best = sortByStatValue(rows, statField, parsed.slots.sort)[0];
       if (!best) continue;
       compareResults.push({
@@ -483,6 +495,140 @@ function findTeamById(teamId: string | null | undefined, teams: TeamLookup[]): T
   return teams.find((team) => team.id === teamId) ?? null;
 }
 
+function applyQueryContext(
+  parsed: ParsedQuery,
+  context: QueryRequestBody["context"] | undefined
+): ParsedQuery {
+  if (!context) return parsed;
+
+  const merged: ParsedQuery = {
+    ...parsed,
+    slots: {
+      ...parsed.slots,
+      season: parsed.slots.season ?? context.season,
+      week: parsed.slots.week ?? context.week,
+      stat: parsed.slots.stat ?? context.stat ?? parsed.slots.stat,
+      teams:
+        parsed.slots.teams.length > 0
+          ? parsed.slots.teams
+          : context.team
+            ? [context.team]
+            : parsed.slots.teams,
+      players:
+        parsed.slots.players.length > 0
+          ? parsed.slots.players
+          : context.player
+            ? [context.player]
+            : parsed.slots.players,
+    },
+  };
+
+  if (merged.resolution !== "clarify" || merged.intent === "unknown") {
+    return merged;
+  }
+
+  const hasStat = typeof merged.slots.stat === "string" && merged.slots.stat.length > 0;
+  const hasCompareSubjects = merged.slots.teams.length >= 2 || merged.slots.players.length >= 2;
+  const canAnswer =
+    merged.intent === "team_stat" || merged.intent === "player_stat" || merged.intent === "leaders"
+      ? hasStat
+      : merged.intent === "compare"
+        ? hasStat && hasCompareSubjects
+        : merged.intent === "weekly_summary";
+
+  if (!canAnswer) {
+    return merged;
+  }
+
+  return {
+    ...merged,
+    resolution: "answer",
+    clarification: null,
+  };
+}
+
+function shouldAggregateSeasonScope(parsed: ParsedQuery): boolean {
+  return typeof parsed.slots.season === "number" && parsed.slots.week == null;
+}
+
+function maybeAggregatePlayerStats(
+  parsed: ParsedQuery,
+  rows: CanonicalPlayerStat[]
+): CanonicalPlayerStat[] {
+  if (!shouldAggregateSeasonScope(parsed)) {
+    return rows;
+  }
+
+  const bucket = new Map<string, CanonicalPlayerStat>();
+  const seasonTypeKey = parsed.slots.seasonType ?? "na";
+  for (const row of rows) {
+    const key = `${row.playerId}-${row.season ?? "na"}-${seasonTypeKey}`;
+    const existing = bucket.get(key);
+    if (!existing) {
+      bucket.set(key, {
+        ...row,
+        id: `player-season-${key}`,
+        sourceId: `player-season-${key}`,
+        week: null,
+        gameId: null,
+      });
+      continue;
+    }
+
+    bucket.set(key, {
+      ...existing,
+      passYards: sumNullableStat(existing.passYards, row.passYards),
+      rushYards: sumNullableStat(existing.rushYards, row.rushYards),
+      recYards: sumNullableStat(existing.recYards, row.recYards),
+      passTd: sumNullableStat(existing.passTd, row.passTd),
+      rushTd: sumNullableStat(existing.rushTd, row.rushTd),
+      recTd: sumNullableStat(existing.recTd, row.recTd),
+      interceptions: sumNullableStat(existing.interceptions, row.interceptions),
+      fumbles: sumNullableStat(existing.fumbles, row.fumbles),
+      sacks: sumNullableStat(existing.sacks, row.sacks),
+    });
+  }
+
+  return [...bucket.values()];
+}
+
+function maybeAggregateTeamStats(
+  parsed: ParsedQuery,
+  rows: CanonicalTeamStat[]
+): CanonicalTeamStat[] {
+  if (!shouldAggregateSeasonScope(parsed)) {
+    return rows;
+  }
+
+  const bucket = new Map<string, CanonicalTeamStat>();
+  const seasonTypeKey = parsed.slots.seasonType ?? "na";
+  for (const row of rows) {
+    const key = `${row.teamId}-${row.season ?? "na"}-${seasonTypeKey}`;
+    const existing = bucket.get(key);
+    if (!existing) {
+      bucket.set(key, {
+        ...row,
+        id: `team-season-${key}`,
+        sourceId: `team-season-${key}`,
+        week: null,
+      });
+      continue;
+    }
+
+    bucket.set(key, {
+      ...existing,
+      passYards: sumNullableStat(existing.passYards, row.passYards),
+      rushYards: sumNullableStat(existing.rushYards, row.rushYards),
+      turnovers: sumNullableStat(existing.turnovers, row.turnovers),
+      totalYards: sumNullableStat(existing.totalYards, row.totalYards),
+      pointsFor: sumNullableStat(existing.pointsFor, row.pointsFor),
+      pointsAgainst: sumNullableStat(existing.pointsAgainst, row.pointsAgainst),
+    });
+  }
+
+  return [...bucket.values()];
+}
+
 function sortByStatValue<T extends Record<string, unknown>>(
   rows: T[],
   field: keyof T | undefined,
@@ -504,4 +650,19 @@ function sortByStatValue<T extends Record<string, unknown>>(
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   return null;
+}
+
+function sumNullableStat(
+  current: number | null | undefined,
+  next: number | null | undefined
+): number | null {
+  if (current == null) {
+    return next ?? null;
+  }
+
+  if (next == null) {
+    return current;
+  }
+
+  return current + next;
 }

@@ -458,3 +458,188 @@ test("POST /api/query returns 400 when body is invalid JSON", async () => {
   assert.equal(response.status, 400);
   assert.equal(body.code, "INVALID_JSON");
 });
+
+test("POST /api/query applies request context when the follow-up query omits team and season", async () => {
+  let getTeamsCalls = 0;
+  let getTeamStatsCalls = 0;
+  let capturedQuery: Awaited<Parameters<ICanonicalStatsService["getTeamStats"]>[0]> | undefined =
+    undefined;
+
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getTeams: async () => {
+        getTeamsCalls += 1;
+        return [
+          {
+            id: "1",
+            source: "balldontlie",
+            sourceId: "1",
+            name: "Atlanta Falcons",
+            abbreviation: "ATL",
+          } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>[number],
+        ];
+      },
+      getTeamStats: async (query) => {
+        getTeamStatsCalls += 1;
+        capturedQuery = query;
+        return [];
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      query: "team stats week 6",
+      context: {
+        season: 2024,
+        team: "ATL",
+        stat: "rushingYards",
+      },
+    }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "team_stat");
+  assert.equal(body.needsClarification, false);
+  assert.equal(getTeamsCalls, 1);
+  assert.equal(getTeamStatsCalls, 1);
+  assert.deepEqual(capturedQuery, {
+    season: 2024,
+    week: 6,
+    seasonType: "REG",
+    teamId: "1",
+    team: "1",
+  });
+});
+
+test("POST /api/query aggregates season-scoped player stats before sorting leaders", async () => {
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async () =>
+        [
+          {
+            id: "a-1",
+            source: "balldontlie",
+            sourceId: "a-1",
+            playerId: "10",
+            teamId: "1",
+            scope: "week",
+            season: 2025,
+            week: 1,
+            passYards: 150,
+          },
+          {
+            id: "a-2",
+            source: "balldontlie",
+            sourceId: "a-2",
+            playerId: "10",
+            teamId: "1",
+            scope: "week",
+            season: 2025,
+            week: 2,
+            passYards: 170,
+          },
+          {
+            id: "b-1",
+            source: "balldontlie",
+            sourceId: "b-1",
+            playerId: "20",
+            teamId: "2",
+            scope: "week",
+            season: 2025,
+            week: 1,
+            passYards: 300,
+          },
+        ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>,
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top passing yards this season" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+  const results = body.results as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "leaders");
+  assert.equal(body.needsClarification, false);
+  assert.equal(results.length, 2);
+  assert.equal(results[0].playerId, "10");
+  assert.equal(results[0].value, 320);
+  assert.equal(results[0].week, null);
+});
+
+test("POST /api/query aggregates season-scoped team comparisons before choosing a value", async () => {
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getTeams: async () =>
+        [
+          {
+            id: "1",
+            source: "balldontlie",
+            sourceId: "1",
+            name: "Atlanta Falcons",
+            abbreviation: "ATL",
+          },
+          {
+            id: "2",
+            source: "balldontlie",
+            sourceId: "2",
+            name: "Baltimore Ravens",
+            abbreviation: "BAL",
+          },
+        ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>,
+      getTeamStats: async (query) =>
+        [
+          {
+            id: `row-${String(query?.teamId)}-1`,
+            source: "balldontlie",
+            sourceId: `row-${String(query?.teamId)}-1`,
+            teamId: String(query?.teamId),
+            scope: "week",
+            season: 2025,
+            week: 1,
+            rushYards: query?.teamId === "1" ? 90 : 140,
+          },
+          {
+            id: `row-${String(query?.teamId)}-2`,
+            source: "balldontlie",
+            sourceId: `row-${String(query?.teamId)}-2`,
+            teamId: String(query?.teamId),
+            scope: "week",
+            season: 2025,
+            week: 2,
+            rushYards: query?.teamId === "1" ? 80 : 10,
+          },
+        ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeamStats"]>>,
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Compare Falcons and Ravens rushing yards this season" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+  const results = body.results as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "compare");
+  assert.equal(body.needsClarification, false);
+  assert.equal(results.length, 2);
+  assert.equal(results[0].team, "ATL");
+  assert.equal(results[0].value, 170);
+  assert.equal(results[1].team, "BAL");
+  assert.equal(results[1].value, 150);
+});

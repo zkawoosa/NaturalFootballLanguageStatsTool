@@ -148,6 +148,7 @@ const DEFAULT_BASE_URLS = ["https://api.balldontlie.io/nfl/v1", "https://api.bal
 const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_REQUEST_WINDOW_MS = 60_000;
 const DEFAULT_REQUEST_WINDOW_MAX = 5;
+const DEFAULT_PAGE_LIMIT = 200;
 const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
 const STRICT_RETRIES_BY_STATUS = {
   429: 2,
@@ -260,12 +261,8 @@ export class PublicNflSource implements IDataSource {
       const params = new URLSearchParams(baseParams);
       if (playerSearch) params.set("search", playerSearch);
       if (team) params.set("team", team);
-      const json = await this.fetchFromSource<{ data: RawPlayerStat[] }>("stats", params);
-      if (!Array.isArray(json?.data)) {
-        throw new NflSourceError("INVALID_RESPONSE", "Player stats response missing data array");
-      }
-
-      return json.data.map((stat) => this.mapPlayerStat(stat));
+      const rawStats = await this.fetchAllStatsPages(params, query.perPage);
+      return rawStats.map((stat) => this.mapPlayerStat(stat));
     }
 
     const allStats: PlayerStat[] = [];
@@ -439,35 +436,7 @@ export class PublicNflSource implements IDataSource {
     baseParams: URLSearchParams,
     perPage: number
   ): Promise<TeamStat[]> {
-    const allRawStats: RawPlayerStat[] = [];
-    const safePerPage =
-      Number.isFinite(perPage) && perPage > 0 ? Math.min(Math.ceil(perPage), 100) : 100;
-    const hardLimitPages = 50;
-
-    for (let currentPage = 1; currentPage <= hardLimitPages; currentPage += 1) {
-      const params = new URLSearchParams(baseParams);
-      params.set("page", String(currentPage));
-      params.set("per_page", String(safePerPage));
-      const json = await this.fetchFromSource<{
-        data: RawPlayerStat[];
-        meta?: { total_pages?: number };
-      }>("stats", params);
-
-      if (Array.isArray(json?.data)) {
-        allRawStats.push(...json.data);
-      }
-
-      const totalPages = Number(json?.meta?.total_pages);
-      if (Number.isFinite(totalPages) && totalPages > 0 && currentPage >= totalPages) {
-        break;
-      }
-      if (!Number.isFinite(totalPages) || totalPages <= 0) {
-        break;
-      }
-      if (allRawStats.length === 0) {
-        break;
-      }
-    }
+    const allRawStats = await this.fetchAllStatsPages(baseParams, perPage);
 
     const bucket = new Map<string, TeamStat>();
     for (const raw of allRawStats) {
@@ -515,13 +484,9 @@ export class PublicNflSource implements IDataSource {
       gameParams.set("team", teamFilter);
     }
 
-    const json = await this.fetchFromSource<{ data: RawGame[] }>("games", gameParams);
-    if (!Array.isArray(json?.data)) {
-      return new Map();
-    }
-
+    const games = await this.fetchAllGamesPages(gameParams, 200);
     const map = new Map<string, { pointsFor: number; pointsAgainst: number }>();
-    for (const game of json.data) {
+    for (const game of games) {
       const homeTeamId = this.asString(game.home_team?.id);
       const awayTeamId = this.asString(game.away_team?.id);
       const pointsHome = game.home_points ?? null;
@@ -550,6 +515,66 @@ export class PublicNflSource implements IDataSource {
     }
 
     return map;
+  }
+
+  private async fetchAllStatsPages(
+    baseParams: URLSearchParams,
+    perPage?: number
+  ): Promise<RawPlayerStat[]> {
+    const safePerPage =
+      Number.isFinite(perPage) && Number(perPage) > 0
+        ? Math.min(Math.ceil(Number(perPage)), 100)
+        : 100;
+    return this.fetchAllPagedRows<RawPlayerStat>("stats", baseParams, safePerPage);
+  }
+
+  private async fetchAllGamesPages(
+    baseParams: URLSearchParams,
+    perPage: number
+  ): Promise<RawGame[]> {
+    const safePerPage = Math.min(Math.max(Math.ceil(perPage), 1), 200);
+    return this.fetchAllPagedRows<RawGame>("games", baseParams, safePerPage);
+  }
+
+  private async fetchAllPagedRows<T>(
+    path: string,
+    baseParams: URLSearchParams,
+    perPage: number
+  ): Promise<T[]> {
+    const allRows: T[] = [];
+
+    for (let currentPage = 1; currentPage <= DEFAULT_PAGE_LIMIT; currentPage += 1) {
+      const params = new URLSearchParams(baseParams);
+      params.set("page", String(currentPage));
+      params.set("per_page", String(perPage));
+      const json = await this.fetchFromSource<{
+        data: T[];
+        meta?: { total_pages?: number };
+      }>(path, params);
+
+      if (!Array.isArray(json?.data)) {
+        throw new NflSourceError(
+          "INVALID_RESPONSE",
+          `${path} response missing data array on page ${currentPage}`
+        );
+      }
+
+      allRows.push(...json.data);
+
+      const totalPages = Number(json?.meta?.total_pages);
+      if (Number.isFinite(totalPages) && totalPages > DEFAULT_PAGE_LIMIT) {
+        throw new NflSourceError(
+          "UPSTREAM_ERROR",
+          `${path} pagination exceeds supported limit of ${DEFAULT_PAGE_LIMIT} pages (${totalPages} reported).`
+        );
+      }
+
+      if (!Number.isFinite(totalPages) || totalPages <= 0 || currentPage >= totalPages) {
+        break;
+      }
+    }
+
+    return allRows;
   }
 
   private sumOrNull(

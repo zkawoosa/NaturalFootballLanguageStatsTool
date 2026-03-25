@@ -210,3 +210,150 @@ test("public nfl source local request budget recovers after window expiry", asyn
   assert.equal(teams.length, 1);
   assert.equal(callCount, 6);
 });
+
+test("public nfl source fetches all stats pages for league-wide player stats", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "test-key";
+
+  let statsCalls = 0;
+  globalThis.fetch = async (input) => {
+    const url = typeof input === "string" ? new URL(input) : new URL(input.url);
+    if (url.pathname.endsWith("/stats")) {
+      statsCalls += 1;
+      const page = Number(url.searchParams.get("page") || "1");
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: page,
+              player_id: page,
+              season: 2025,
+              week: 7,
+              season_type: "REG",
+              passing_yards: page * 100,
+            },
+          ],
+          meta: { total_pages: 2 },
+        }),
+        { status: 200 }
+      );
+    }
+
+    return new Response(JSON.stringify({ data: [] }), { status: 200 });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    process.env.BL_API_KEY = originalApiKey;
+  });
+
+  const source = new PublicNflSource();
+  const stats = await source.getPlayerStats({ season: 2025, week: 7 });
+
+  assert.equal(statsCalls, 2);
+  assert.equal(stats.length, 2);
+  assert.equal(stats[0].passingYards, 100);
+  assert.equal(stats[1].passingYards, 200);
+});
+
+test("public nfl source fetches all pages needed for team stats and game points", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "test-key";
+
+  globalThis.fetch = async (input) => {
+    const url = typeof input === "string" ? new URL(input) : new URL(input.url);
+    const page = Number(url.searchParams.get("page") || "1");
+
+    if (url.pathname.endsWith("/stats")) {
+      return new Response(
+        JSON.stringify({
+          data:
+            page === 1
+              ? [
+                  {
+                    id: 1,
+                    player_id: 10,
+                    team_id: 1,
+                    season: 2025,
+                    week: 1,
+                    season_type: "REG",
+                    passing_yards: 100,
+                    rushing_yards: 25,
+                    interceptions: 1,
+                    fumbles_lost: 0,
+                  },
+                ]
+              : [
+                  {
+                    id: 2,
+                    player_id: 11,
+                    team_id: 1,
+                    season: 2025,
+                    week: 2,
+                    season_type: "REG",
+                    passing_yards: 120,
+                    rushing_yards: 30,
+                    interceptions: 0,
+                    fumbles_lost: 1,
+                  },
+                ],
+          meta: { total_pages: 2 },
+        }),
+        { status: 200 }
+      );
+    }
+
+    if (url.pathname.endsWith("/games")) {
+      return new Response(
+        JSON.stringify({
+          data:
+            page === 1
+              ? [
+                  {
+                    id: 100,
+                    season: 2025,
+                    week: 1,
+                    season_type: "REG",
+                    home_team: { id: "1" },
+                    away_team: { id: "2" },
+                    home_points: 21,
+                    away_points: 17,
+                  },
+                ]
+              : [
+                  {
+                    id: 101,
+                    season: 2025,
+                    week: 2,
+                    season_type: "REG",
+                    home_team: { id: "3" },
+                    away_team: { id: "1" },
+                    home_points: 14,
+                    away_points: 28,
+                  },
+                ],
+          meta: { total_pages: 2 },
+        }),
+        { status: 200 }
+      );
+    }
+
+    return new Response(JSON.stringify({ data: [] }), { status: 200 });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    process.env.BL_API_KEY = originalApiKey;
+  });
+
+  const source = new PublicNflSource();
+  const stats = await source.getTeamStats({ season: 2025 });
+
+  assert.equal(stats.length, 2);
+  const weekOne = stats.find((item) => item.week === 1);
+  const weekTwo = stats.find((item) => item.week === 2);
+  assert.equal(weekOne?.pointsFor, 21);
+  assert.equal(weekTwo?.pointsFor, 28);
+});

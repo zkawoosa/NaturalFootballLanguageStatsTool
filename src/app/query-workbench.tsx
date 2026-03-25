@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { buildQueryRequestBody } from "@/lib/app/queryRequestBody.ts";
 import type { QueryResponse } from "@/lib/contracts/api.ts";
 
 type QueryWorkbenchProps = {
@@ -247,10 +248,11 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
     setState({ status: "loading" });
 
     try {
+      const previousResponse = state.status === "loaded" ? state.response : null;
       const response = await fetch("/api/query", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query: nextQuery }),
+        body: JSON.stringify(buildQueryRequestBody(nextQuery, previousResponse)),
       });
 
       let payload: QueryResponse | { error?: string } | null = null;
