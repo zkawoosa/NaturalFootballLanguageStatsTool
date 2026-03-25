@@ -173,7 +173,7 @@ const STRICT_RETRIES_BY_STATUS = {
   429: 2,
 } as const;
 const RETRY_POLICY_DESCRIPTION = "strict_429_only";
-type BalldontlieAuthMode = "both" | "authorizationOnly" | "xApiKeyOnly";
+type BalldontlieAuthMode = "authorizationOnly" | "xApiKeyOnly";
 
 export const STRICT_429_RETRY_POLICY: NflRetryPolicy = {
   id: RETRY_POLICY_DESCRIPTION,
@@ -1075,13 +1075,12 @@ export class PublicNflSource implements IDataSource {
 
     return {
       Accept: "application/json",
-      "X-API-Key": apiKey,
       Authorization: `Bearer ${apiKey}`,
     };
   }
 
   private getAuthModes(): BalldontlieAuthMode[] {
-    return ["both", "xApiKeyOnly", "authorizationOnly"];
+    return ["authorizationOnly", "xApiKeyOnly"];
   }
 
   private formatAuthMode(authMode: BalldontlieAuthMode): string {
@@ -1091,7 +1090,7 @@ export class PublicNflSource implements IDataSource {
     if (authMode === "xApiKeyOnly") {
       return "x-api-key-only";
     }
-    return "both-headers";
+    return "authorization-only";
   }
 
   private applyAuthModeToRequestUrl(baseUrl: URL, apiKey: string): URL {

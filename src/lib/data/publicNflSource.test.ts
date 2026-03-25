@@ -114,7 +114,8 @@ test("public nfl source retries with fallback API key when primary key is unauth
   const requestKeys: string[] = [];
   globalThis.fetch = async (_input, init) => {
     const headers = new Headers(init?.headers as HeadersInit | undefined);
-    const apiKeyHeader = headers.get("x-api-key") ?? "";
+    const authHeader = headers.get("authorization") ?? "";
+    const apiKeyHeader = authHeader.replace(/^Bearer\s+/i, "");
     requestKeys.push(apiKeyHeader);
 
     if (apiKeyHeader === "wrong-key") {
@@ -178,33 +179,31 @@ test("public nfl source retries with alternate auth mode when header format is r
 
     if (hasBearer && hasApiKey) {
       authModes.push("both");
+      return new Response("{}", { status: 401 });
     } else if (hasBearer) {
       authModes.push("authorization");
+      return new Response("{}", { status: 401 });
     } else if (hasApiKey) {
       authModes.push("x-api-key");
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 1,
+              name: "Falcons",
+              abbreviation: "ATL",
+              city: "Atlanta",
+              conference: "NFC",
+              division: { name: "South" },
+            },
+          ],
+        }),
+        { status: 200 }
+      );
     } else {
       authModes.push("none");
-    }
-
-    if (hasBearer && hasApiKey) {
       return new Response("{}", { status: 401 });
     }
-
-    return new Response(
-      JSON.stringify({
-        data: [
-          {
-            id: 1,
-            name: "Falcons",
-            abbreviation: "ATL",
-            city: "Atlanta",
-            conference: "NFC",
-            division: { name: "South" },
-          },
-        ],
-      }),
-      { status: 200 }
-    );
   };
 
   t.after(() => {
@@ -219,7 +218,7 @@ test("public nfl source retries with alternate auth mode when header format is r
   const source = new PublicNflSource();
   const teams = await source.getTeams();
 
-  assert.equal(authModes[0], "both");
+  assert.equal(authModes[0], "authorization");
   assert.equal(authModes[1], "x-api-key");
   assert.equal(authModes.length, 2);
   assert.equal(teams.length, 1);
