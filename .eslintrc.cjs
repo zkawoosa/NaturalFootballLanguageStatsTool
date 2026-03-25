@@ -9,8 +9,10 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
-  plugins: ["@typescript-eslint"],
+  plugins: ["@typescript-eslint", "@next/next"],
   extends: [
+    "next/core-web-vitals",
+    "next/typescript",
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
     "prettier",

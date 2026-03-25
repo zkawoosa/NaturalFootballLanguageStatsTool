@@ -306,7 +306,7 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
       <form className="query-form" onSubmit={onSubmit}>
         <label htmlFor="query">Ask a question</label>
         <p id="query-help" className="form-help">
-          Press Enter to run, "/" to focus input, and Esc to clear input.
+          Press Enter to run, / to focus input, and Esc to clear input.
         </p>
         <input
           ref={queryInputRef}
@@ -415,6 +415,10 @@ function LoadedQueryState({
   onSelectAlternative: (query: string) => void;
 }) {
   const isUnsupported = response.summary.startsWith("Unsupported query:");
+  const isSourceFailure =
+    response.needsClarification === false &&
+    (response as { sourceError?: boolean }).sourceError === true;
+
   if (response.needsClarification) {
     return (
       <div className="state-clarification">
@@ -436,6 +440,15 @@ function LoadedQueryState({
             ))}
           </div>
         ) : null}
+      </div>
+    );
+  }
+
+  if (isSourceFailure) {
+    return (
+      <div className="state-error">
+        <p className="state-title">Source issue</p>
+        <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
       </div>
     );
   }
