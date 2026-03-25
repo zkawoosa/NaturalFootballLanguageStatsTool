@@ -440,6 +440,10 @@ export class PublicNflSource implements IDataSource {
   }
 
   private noteCircuitFailure(error: NflSourceError): void {
+    if (error.code === "UNAUTHORIZED" || error.code === "NOT_FOUND") {
+      return;
+    }
+
     if (error.code === "RATE_LIMIT") {
       return;
     }
@@ -459,6 +463,10 @@ export class PublicNflSource implements IDataSource {
 
   private noteCircuitSuccess(): void {
     this.circuitFailureTimestampsMs = [];
+  }
+
+  private maybeNoteCircuitFailure(error: NflSourceError): void {
+    this.noteCircuitFailure(error);
   }
 
   private normalizePlayerIds(playerIds?: string[] | null): string[] {
@@ -741,7 +749,7 @@ export class PublicNflSource implements IDataSource {
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
           if (error instanceof NflSourceError) {
-            this.noteCircuitFailure(error);
+            this.maybeNoteCircuitFailure(error);
             await logEvent({
               requestId,
               eventType: "source",
@@ -946,11 +954,11 @@ export class PublicNflSource implements IDataSource {
         }
 
         if (response.status !== 404 && response.status !== 401) {
-          this.noteCircuitFailure(lastError);
+          this.maybeNoteCircuitFailure(lastError);
           throw lastError;
         }
 
-        this.noteCircuitFailure(lastError);
+        this.maybeNoteCircuitFailure(lastError);
         shouldRetry = false;
         break;
       }

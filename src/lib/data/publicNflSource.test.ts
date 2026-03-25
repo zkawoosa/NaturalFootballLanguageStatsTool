@@ -225,6 +225,43 @@ test("public nfl source retries with alternate auth mode when header format is r
   assert.equal(teams[0].abbreviation, "ATL");
 });
 
+test("public nfl source does not open circuit breaker for repeated 401 authorization failures", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "bad-key";
+
+  globalThis.fetch = async () => {
+    return new Response("{}", { status: 401 });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) {
+      delete process.env.BL_API_KEY;
+    } else {
+      process.env.BL_API_KEY = originalApiKey;
+    }
+  });
+
+  const source = new PublicNflSource({
+    circuitBreakerFailureThreshold: 1,
+    circuitBreakerCooldownMs: 60_000,
+  });
+
+  for (let i = 0; i < 3; i += 1) {
+    let thrown: unknown = undefined;
+    try {
+      await source.getTeams();
+      assert.fail("expected getTeams to throw");
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert.ok(thrown instanceof NflSourceError);
+    assert.equal((thrown as NflSourceError).code, "UNAUTHORIZED");
+  }
+});
+
 test("public nfl source blocks the 6th request in a rolling 60-second local window", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.BL_API_KEY;
