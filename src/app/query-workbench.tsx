@@ -445,10 +445,32 @@ function LoadedQueryState({
   }
 
   if (isSourceFailure) {
+        return (
+          <div className="state-error">
+            <p className="state-title">Source issue</p>
+            <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
+        {(response as { sourceErrorMessage?: string }).sourceErrorMessage ? (
+          <p className="muted">{(response as { sourceErrorMessage?: string }).sourceErrorMessage}</p>
+        ) : null}
+          </div>
+        );
+  }
+
+  if (response.dataStale) {
     return (
-      <div className="state-error">
-        <p className="state-title">Source issue</p>
-        <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
+      <div className="state-warning">
+        <p className="state-title">Using cached results</p>
+        <p className="muted">
+          Source data could not be refreshed, so these results may be slightly stale.
+        </p>
+        <p>{response.summary || "No matching records were found."}</p>
+        {response.results.length === 0 ? null : (
+          <div className="result-list">
+            {response.results.map((item, index) => (
+              <ResultCard key={resultKey(item, index)} item={item} index={index} />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

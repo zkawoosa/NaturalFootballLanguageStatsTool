@@ -401,13 +401,48 @@ test("POST /api/query returns upstream-failure state with parsed intent", async 
   assert.equal(getPlayerStatsCalls, 1);
 });
 
+test("POST /api/query maps unauthorized source failures to explicit status", async () => {
+  let getPlayerStatsCalls = 0;
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async () => {
+        getPlayerStatsCalls += 1;
+        throw new NflSourceError("UNAUTHORIZED", "Bad API key", 401);
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top 5 rushing touchdowns in week 7" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "leaders");
+  assert.equal(body.needsClarification, false);
+  assert.equal(
+    body.summary,
+    "The source API key is invalid or expired. Update your BL_API_KEY configuration."
+  );
+  assert.equal(body.sourceError, true);
+  assert.equal(body.errorCode, "UNAUTHORIZED");
+  assert.equal(body.sourceErrorMessage, "Bad API key");
+  assert.equal(getPlayerStatsCalls, 1);
+});
+
 test("POST /api/query returns rate-limit fallback message when source budget is exhausted", async () => {
   let getPlayerStatsCalls = 0;
   setQueryStatsServiceFactoryForTests(() =>
     createFakeStatsService({
       getPlayerStats: async () => {
         getPlayerStatsCalls += 1;
-        throw new NflSourceError("RATE_LIMIT", "local source budget exhausted", 429);
+        throw new NflSourceError("RATE_LIMIT", "local source budget exhausted", 429, {
+          retryAfterMs: 12_000,
+        });
       },
     })
   );
@@ -430,7 +465,49 @@ test("POST /api/query returns rate-limit fallback message when source budget is 
   );
   assert.equal(body.sourceError, true);
   assert.equal(body.errorCode, "RATE_LIMIT");
+  assert.equal(body.sourceRetryAfterMs, 12_000);
   assert.equal(getPlayerStatsCalls, 1);
+});
+
+test("POST /api/query surfaces stale cached results when service indicates fallback", async () => {
+  setQueryStatsServiceFactoryForTests(() =>
+    ({
+      getTeams: async () => [],
+      getPlayers: async () => [],
+      getGames: async () => [],
+      getPlayerStats: async () => [
+        {
+          id: "p1",
+          source: "balldontlie",
+          sourceId: "p1",
+          playerId: "100",
+          teamId: "10",
+          scope: "season",
+          season: 2025,
+          week: null,
+          passYards: 111,
+        } as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>[number],
+      ],
+      getTeamStats: async () => [],
+      consumeDataStaleHint: () => true,
+    }) as ICanonicalStatsService
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Top passing yards this season" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+  const results = body.results as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.dataStale, true);
+  assert.equal(results.length, 1);
+  assert.equal(body.needsClarification, false);
+  assert.equal(body.summary, "Found 1 player stat result.");
 });
 
 test("POST /api/query returns 400 when query is missing", async () => {

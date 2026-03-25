@@ -28,6 +28,7 @@ type QueryResponseBase = {
   summary: string;
   confidence: number;
   alternatives: string[];
+  dataStale?: boolean;
 };
 
 export type QuerySuccessResponse = QueryResponseBase & {
@@ -40,7 +41,17 @@ export type QuerySourceErrorResponse = QueryResponseBase & {
   needsClarification: false;
   sourceError: true;
   dataSource: "public";
-  errorCode: "RATE_LIMIT" | "SOURCE_UNAVAILABLE";
+  errorCode:
+    | "RATE_LIMIT"
+    | "SOURCE_UNAVAILABLE"
+    | "UNAUTHORIZED"
+    | "NOT_FOUND"
+    | "TIMEOUT"
+    | "UPSTREAM_ERROR"
+    | "INVALID_RESPONSE"
+    | "NO_DATA";
+  sourceErrorMessage?: string;
+  sourceRetryAfterMs?: number;
   clarificationPrompt?: undefined;
 };
 

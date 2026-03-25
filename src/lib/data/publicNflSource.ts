@@ -13,11 +13,26 @@ export type NflSourceErrorCode =
 export class NflSourceError extends Error {
   public readonly code: NflSourceErrorCode;
   public readonly status?: number;
+  public readonly requestId?: string;
+  public readonly endpoint?: string;
+  public readonly retryAfterMs?: number;
 
-  constructor(code: NflSourceErrorCode, message: string, status?: number) {
+  constructor(
+    code: NflSourceErrorCode,
+    message: string,
+    status?: number,
+    options?: {
+      requestId?: string;
+      endpoint?: string;
+      retryAfterMs?: number;
+    }
+  ) {
     super(message);
     this.code = code;
     this.status = status;
+    this.requestId = options?.requestId;
+    this.endpoint = options?.endpoint;
+    this.retryAfterMs = options?.retryAfterMs;
     this.name = "NflSourceError";
   }
 }
@@ -150,6 +165,9 @@ const DEFAULT_REQUEST_WINDOW_MS = 60_000;
 const DEFAULT_REQUEST_WINDOW_MAX = 5;
 const DEFAULT_PAGE_LIMIT = 200;
 const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
+const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
+const DEFAULT_CIRCUIT_BREAKER_WINDOW_MS = 60_000;
+const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 60_000;
 const STRICT_RETRIES_BY_STATUS = {
   429: 2,
 } as const;
@@ -172,6 +190,11 @@ export class PublicNflSource implements IDataSource {
   private requestWindowMs: number;
   private requestWindowMax: number;
   private requestTimestampsMs: number[];
+  private circuitFailureTimestampsMs: number[];
+  private circuitOpenUntilMs: number;
+  private circuitBreakerFailureThreshold: number;
+  private circuitBreakerWindowMs: number;
+  private circuitBreakerCooldownMs: number;
   private nowProvider: () => number;
 
   constructor(opts?: {
@@ -179,6 +202,9 @@ export class PublicNflSource implements IDataSource {
     timeoutMs?: number;
     requestWindowMs?: number;
     requestWindowMax?: number;
+    circuitBreakerFailureThreshold?: number;
+    circuitBreakerWindowMs?: number;
+    circuitBreakerCooldownMs?: number;
     nowProvider?: () => number;
   }) {
     this.baseUrl = opts?.baseUrl?.replace(/\/$/, "") || DEFAULT_BASE_URLS[0];
@@ -186,6 +212,14 @@ export class PublicNflSource implements IDataSource {
     this.requestWindowMs = opts?.requestWindowMs ?? DEFAULT_REQUEST_WINDOW_MS;
     this.requestWindowMax = opts?.requestWindowMax ?? DEFAULT_REQUEST_WINDOW_MAX;
     this.requestTimestampsMs = [];
+    this.circuitFailureTimestampsMs = [];
+    this.circuitOpenUntilMs = 0;
+    this.circuitBreakerFailureThreshold =
+      opts?.circuitBreakerFailureThreshold ?? DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
+    this.circuitBreakerWindowMs =
+      opts?.circuitBreakerWindowMs ?? DEFAULT_CIRCUIT_BREAKER_WINDOW_MS;
+    this.circuitBreakerCooldownMs =
+      opts?.circuitBreakerCooldownMs ?? DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS;
     this.nowProvider = opts?.nowProvider ?? (() => Date.now());
   }
 
@@ -347,6 +381,74 @@ export class PublicNflSource implements IDataSource {
     if (query.perPage) params.set("per_page", String(query.perPage));
     if (query.page) params.set("page", String(query.page));
     return params;
+  }
+
+  private trimRequestWindow(now: number): void {
+    const cutoff = now - this.requestWindowMs;
+    this.requestTimestampsMs = this.requestTimestampsMs.filter((timestamp) => timestamp >= cutoff);
+    this.circuitFailureTimestampsMs = this.circuitFailureTimestampsMs.filter(
+      (timestamp) => timestamp >= now - this.circuitBreakerWindowMs
+    );
+  }
+
+  private remainingRequestsInWindow(now: number): number {
+    this.trimRequestWindow(now);
+    return Math.max(0, this.requestWindowMax - this.requestTimestampsMs.length);
+  }
+
+  private ensureSourceBudget(path: string): void {
+    const now = this.nowProvider();
+    const remaining = this.remainingRequestsInWindow(now);
+    if (remaining <= 0) {
+      throw new NflSourceError(
+        "RATE_LIMIT",
+        `Local request budget exceeded (${this.requestWindowMax} requests per ${this.requestWindowMs / 1000}s) before calling ${path}`,
+        429
+      );
+    }
+  }
+
+  private recordSuccessfulRequest(now: number): void {
+    this.trimRequestWindow(now);
+    this.requestTimestampsMs.push(now);
+  }
+
+  private ensureCircuitHealthy(path: string): void {
+    const now = this.nowProvider();
+    if (this.circuitOpenUntilMs > 0 && now < this.circuitOpenUntilMs) {
+      const secondsLeft = Math.ceil((this.circuitOpenUntilMs - now) / 1000);
+      throw new NflSourceError(
+        "UPSTREAM_ERROR",
+        `Balldontlie request blocked by circuit breaker for ${path}. Retry in ${secondsLeft}s.`,
+        503
+      );
+    }
+
+    this.circuitOpenUntilMs = 0;
+  }
+
+  private noteCircuitFailure(error: NflSourceError): void {
+    if (error.code === "RATE_LIMIT") {
+      return;
+    }
+
+    const now = this.nowProvider();
+    const trimmedFailures = this.circuitFailureTimestampsMs.filter(
+      (timestamp) => timestamp >= now - this.circuitBreakerWindowMs
+    );
+    trimmedFailures.push(now);
+    this.circuitFailureTimestampsMs = trimmedFailures;
+
+    if (
+      trimmedFailures.length >= this.circuitBreakerFailureThreshold
+    ) {
+      this.circuitOpenUntilMs = now + this.circuitBreakerCooldownMs;
+      this.circuitFailureTimestampsMs = [];
+    }
+  }
+
+  private noteCircuitSuccess(): void {
+    this.circuitFailureTimestampsMs = [];
   }
 
   private normalizePlayerIds(playerIds?: string[] | null): string[] {
@@ -542,6 +644,7 @@ export class PublicNflSource implements IDataSource {
     perPage: number
   ): Promise<T[]> {
     const allRows: T[] = [];
+    let projectedPages: number | undefined;
 
     for (let currentPage = 1; currentPage <= DEFAULT_PAGE_LIMIT; currentPage += 1) {
       const params = new URLSearchParams(baseParams);
@@ -562,6 +665,19 @@ export class PublicNflSource implements IDataSource {
       allRows.push(...json.data);
 
       const totalPages = Number(json?.meta?.total_pages);
+      if (currentPage === 1 && Number.isFinite(totalPages) && totalPages > 0) {
+        projectedPages = totalPages;
+        const now = this.nowProvider();
+        const remainingRequests = this.remainingRequestsInWindow(now);
+        if (projectedPages > remainingRequests + 1) {
+          throw new NflSourceError(
+            "RATE_LIMIT",
+            `Local budget would be exceeded for ${path} pagination. Needed ${projectedPages} requests but only ${remainingRequests + 1} remain in this ${this.requestWindowMs / 1000}s window.`,
+            429
+          );
+        }
+      }
+
       if (Number.isFinite(totalPages) && totalPages > DEFAULT_PAGE_LIMIT) {
         throw new NflSourceError(
           "UPSTREAM_ERROR",
@@ -629,10 +745,13 @@ export class PublicNflSource implements IDataSource {
       while (shouldRetry) {
         let response: Response;
         try {
-          response = await this.safeRequest(url.toString());
+          this.ensureCircuitHealthy(route);
+          this.ensureSourceBudget(route);
+          response = await this.safeRequest(url.toString(), requestId, route);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
           if (error instanceof NflSourceError) {
+            this.noteCircuitFailure(error);
             await logEvent({
               requestId,
               eventType: "source",
@@ -664,10 +783,15 @@ export class PublicNflSource implements IDataSource {
             errorCode: "UPSTREAM_ERROR",
             errorMessage: message,
           });
-          throw new NflSourceError("UPSTREAM_ERROR", message);
+          throw new NflSourceError("UPSTREAM_ERROR", message, undefined, {
+            requestId,
+            endpoint: route,
+          });
         }
 
         if (response.ok && response.status >= 200 && response.status < 300) {
+          this.recordSuccessfulRequest(this.nowProvider());
+          this.noteCircuitSuccess();
           const latencyMs = Date.now() - startedAt;
           await logEvent({
             requestId,
@@ -743,11 +867,16 @@ export class PublicNflSource implements IDataSource {
           typeof maybeJson === "object" && maybeJson !== null
             ? JSON.stringify(maybeJson)
             : String(message);
-
+        const retryAfterMs = this.parseRetryAfterMs(response.headers.get("retry-after"));
         lastError = new NflSourceError(
           code,
           `Balldontlie request failed (${response.status}) for ${path}: ${detail}`,
-          response.status
+          response.status,
+          {
+            requestId,
+            endpoint: route,
+            retryAfterMs,
+          }
         );
         await logEvent({
           requestId,
@@ -766,9 +895,11 @@ export class PublicNflSource implements IDataSource {
         });
 
         if (response.status !== 404 && response.status !== 401) {
+          this.noteCircuitFailure(lastError);
           throw lastError;
         }
 
+        this.noteCircuitFailure(lastError);
         shouldRetry = false;
         break;
       }
@@ -781,55 +912,8 @@ export class PublicNflSource implements IDataSource {
     throw lastError;
   }
 
-  private async safeRequest(url: string): Promise<Response> {
-    this.enforceRequestBudget(url);
-
-    const apiKey = getBalldontlieApiKey();
-    const headers = {
-      Accept: "application/json",
-      "X-API-Key": apiKey,
-      Authorization: `Bearer ${apiKey}`,
-    };
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    try {
-      return await fetch(url, {
-        headers,
-        method: "GET",
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new NflSourceError("TIMEOUT", `Request timed out after ${this.timeoutMs}ms`, 408);
-      }
-      throw error instanceof NflSourceError
-        ? error
-        : new NflSourceError("UPSTREAM_ERROR", `Request failed for ${url}`);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
   private async wait(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private enforceRequestBudget(url: string): void {
-    const now = this.nowProvider();
-    const cutoff = now - this.requestWindowMs;
-    this.requestTimestampsMs = this.requestTimestampsMs.filter((timestamp) => timestamp >= cutoff);
-
-    if (this.requestTimestampsMs.length >= this.requestWindowMax) {
-      throw new NflSourceError(
-        "RATE_LIMIT",
-        `Local request budget exceeded (${this.requestWindowMax} requests per ${this.requestWindowMs / 1000}s) before calling ${url}`,
-        429
-      );
-    }
-
-    this.requestTimestampsMs.push(now);
   }
 
   private resolveRetryDelayMs(
@@ -865,6 +949,61 @@ export class PublicNflSource implements IDataSource {
     if (!STRICT_429_RETRY_POLICY.retryOnStatus.includes(status)) return false;
     const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[status] ?? 0;
     return tries < maxRetries;
+  }
+
+  private parseRetryAfterMs(retryAfterHeader: string | null): number | undefined {
+    if (!retryAfterHeader) {
+      return undefined;
+    }
+
+    const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
+    if (!Number.isNaN(retryAfterSeconds)) {
+      return retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
+    }
+
+    const retryAfterDateMs = Date.parse(retryAfterHeader);
+    if (Number.isFinite(retryAfterDateMs)) {
+      const delta = retryAfterDateMs - Date.now();
+      return delta > 0 ? delta : 0;
+    }
+
+    return undefined;
+  }
+
+  private safeRequest(url: string, requestId: string, endpoint: string): Promise<Response> {
+    const apiKey = getBalldontlieApiKey();
+    const headers = {
+      Accept: "application/json",
+      "X-API-Key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    return fetch(url, {
+      headers,
+      method: "GET",
+      signal: controller.signal,
+    })
+      .catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new NflSourceError("TIMEOUT", `Request timed out after ${this.timeoutMs}ms`, 408, {
+            requestId,
+            endpoint,
+          });
+        }
+
+        throw error instanceof NflSourceError
+          ? error
+          : new NflSourceError("UPSTREAM_ERROR", `Request failed for ${url}`, 500, {
+              requestId,
+              endpoint,
+            });
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+      });
   }
 
   private mapStatusToErrorCode(status: number): NflSourceErrorCode {

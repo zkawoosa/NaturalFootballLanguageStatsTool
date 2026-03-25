@@ -75,3 +75,25 @@ test("app shell service includes cache status when available", async () => {
   assert.equal(status.cache?.hits, 4);
   assert.equal(status.cache?.misses, 1);
 });
+
+test("app shell service probes the freshest teams endpoint when available", async () => {
+  let getTeamsCalls = 0;
+  let getTeamsFreshCalls = 0;
+
+  const source = createFakeSource({
+    getTeams: async () => {
+      getTeamsCalls += 1;
+      return [{ id: "1", name: "Falcons", abbreviation: "ATL" }];
+    },
+    getTeamsFresh: async () => {
+      getTeamsFreshCalls += 1;
+      return [{ id: "2", name: "Bills", abbreviation: "BUF" }];
+    },
+  });
+
+  const status = await getSourceHealth(source);
+
+  assert.equal(status.healthy, true);
+  assert.equal(getTeamsCalls, 0);
+  assert.equal(getTeamsFreshCalls, 1);
+});

@@ -113,3 +113,79 @@ test("cached data source treats playerIds order as cache-equivalent", async () =
   assert.equal(cache.hits, 1);
   assert.equal(cache.misses, 1);
 });
+
+test("cached data source serves stale cache when the source request fails", async () => {
+  let getPlayersCalls = 0;
+  let shouldFail = false;
+  const nowRef = { value: 1_000 };
+
+  const source = {
+    getPlayers: async () => {
+      getPlayersCalls += 1;
+      if (shouldFail) {
+        throw new Error("upstream unavailable");
+      }
+      return [{ id: "17", firstName: "Josh", lastName: "Allen", team: "Bills", teamId: "1" }];
+    },
+    getTeams: async () => [],
+    getGames: async () => [],
+    getPlayerStats: async () => [],
+    getTeamStats: async () => [],
+  };
+
+  const cached = new CachedDataSource(source, {
+    enabled: true,
+    ttlSeconds: 1,
+    now: () => nowRef.value,
+  });
+
+  const first = await cached.getPlayers({ search: "Josh Allen" });
+  nowRef.value += 2_500;
+  shouldFail = true;
+
+  const second = await cached.getPlayers({ search: "Josh Allen" });
+  const staleHint = cached.consumeDataStaleHint();
+
+  assert.equal(first.length, 1);
+  assert.equal(second.length, 1);
+  assert.equal(staleHint, true);
+  assert.equal(getPlayersCalls, 2);
+});
+
+test("consumeDataStaleHint resets after first read", async () => {
+  let getPlayersCalls = 0;
+  let shouldFail = false;
+  const nowRef = { value: 5_000 };
+
+  const source = {
+    getPlayers: async () => {
+      getPlayersCalls += 1;
+      if (shouldFail) {
+        throw new Error("upstream unavailable");
+      }
+      return [{ id: "17", firstName: "Josh", lastName: "Allen", team: "Bills", teamId: "1" }];
+    },
+    getTeams: async () => [],
+    getGames: async () => [],
+    getPlayerStats: async () => [],
+    getTeamStats: async () => [],
+  };
+
+  const cached = new CachedDataSource(source, {
+    enabled: true,
+    ttlSeconds: 1,
+    now: () => nowRef.value,
+  });
+
+  await cached.getPlayers({ search: "Josh Allen" });
+  nowRef.value += 2_500;
+  shouldFail = true;
+  await cached.getPlayers({ search: "Josh Allen" });
+
+  const firstRead = cached.consumeDataStaleHint();
+  const secondRead = cached.consumeDataStaleHint();
+
+  assert.equal(firstRead, true);
+  assert.equal(secondRead, false);
+  assert.equal(getPlayersCalls, 2);
+});

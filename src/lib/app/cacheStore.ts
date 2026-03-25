@@ -19,6 +19,11 @@ type CacheStoreOptions = {
   now?: () => number;
 };
 
+type CachedLoadResult<T> = {
+  value: T;
+  stale: boolean;
+};
+
 export class InMemoryRequestCache {
   private readonly enabled: boolean;
   private readonly ttlMs: number;
@@ -37,42 +42,64 @@ export class InMemoryRequestCache {
   }
 
   async getOrSet<T>(key: string, loader: () => Promise<T>): Promise<T> {
+    const { value } = await this.getOrSetWithStaleFallback(key, loader, {
+      allowStale: false,
+    });
+    return value;
+  }
+
+  async getOrSetWithStaleFallback<T>(
+    key: string,
+    loader: () => Promise<T>,
+    options?: { allowStale?: boolean }
+  ): Promise<CachedLoadResult<T>> {
+    const allowStale = options?.allowStale ?? true;
+
     if (!this.enabled || this.ttlMs === 0) {
-      return loader();
+      const value = await loader();
+      return { value, stale: false };
     }
 
-    this.evictExpired();
-    const current = this.entries.get(key);
     const currentTime = this.now();
+    const current = this.entries.get(key);
 
     if (current && current.expiresAt > currentTime) {
       this.hits += 1;
       this.lastHitAt = new Date(currentTime).toISOString();
-      return current.value as T;
+      return { value: current.value as T, stale: false };
+    }
+
+    if (current && current.expiresAt <= currentTime && !allowStale) {
+      this.entries.delete(key);
     }
 
     this.misses += 1;
     this.lastMissAt = new Date(currentTime).toISOString();
 
-    const existingRequest = this.inFlight.get(key);
+    const staleValue = allowStale && current ? (current.value as T) : undefined;
+    const existingRequest = this.inFlight.get(key) as Promise<CachedLoadResult<T>> | undefined;
     if (existingRequest) {
-      return (await existingRequest) as T;
+      return existingRequest;
     }
 
-    const request = loader()
-      .then((value) => {
-        this.entries.set(key, {
-          value,
-          expiresAt: this.now() + this.ttlMs,
-        });
-        return value;
-      })
-      .finally(() => {
-        this.inFlight.delete(key);
+    const request = (async () => {
+      const value = await loader();
+      this.entries.set(key, {
+        value,
+        expiresAt: this.now() + this.ttlMs,
       });
+      return { value, stale: false };
+    })().catch((error) => {
+      if (allowStale && staleValue !== undefined) {
+        return { value: staleValue, stale: true };
+      }
+      throw error;
+    });
 
     this.inFlight.set(key, request);
-    return request;
+    return request.finally(() => {
+      this.inFlight.delete(key);
+    });
   }
 
   getStats(): CacheStats {
@@ -89,12 +116,16 @@ export class InMemoryRequestCache {
     };
   }
 
-  private evictExpired() {
+  clearExpiredEntries(): void {
     const currentTime = this.now();
     for (const [key, value] of this.entries.entries()) {
       if (value.expiresAt <= currentTime) {
         this.entries.delete(key);
       }
     }
+  }
+
+  private evictExpired() {
+    this.clearExpiredEntries();
   }
 }

@@ -86,6 +86,7 @@ function buildCacheKey(method: string, params?: unknown): string {
 export type CacheAwareDataSource = IDataSource & {
   getCacheStats: () => CacheStats;
   getTeamsFresh: () => Promise<Team[]>;
+  consumeDataStaleHint: () => boolean;
 };
 
 type CachedDataSourceOptions = {
@@ -97,6 +98,7 @@ type CachedDataSourceOptions = {
 export class CachedDataSource implements CacheAwareDataSource {
   private readonly source: IDataSource;
   private readonly cache: InMemoryRequestCache;
+  private hasStaleResult = false;
 
   constructor(source: IDataSource, options: CachedDataSourceOptions) {
     this.source = source;
@@ -107,34 +109,53 @@ export class CachedDataSource implements CacheAwareDataSource {
     return this.cache.getStats();
   }
 
+  consumeDataStaleHint(): boolean {
+    const result = this.hasStaleResult;
+    this.hasStaleResult = false;
+    return result;
+  }
+
+  private async getFromCache<T>(
+    key: string,
+    loader: () => Promise<T>
+  ): Promise<T> {
+    const { value, stale } = await this.cache.getOrSetWithStaleFallback(key, loader, {
+      allowStale: true,
+    });
+
+    if (stale) {
+      this.hasStaleResult = true;
+    }
+
+    return value;
+  }
+
   async getTeamsFresh(): Promise<Team[]> {
     return this.source.getTeams();
   }
 
   async getTeams(): Promise<Team[]> {
-    return this.cache.getOrSet(buildCacheKey("teams"), async () => this.source.getTeams());
+    return this.getFromCache(buildCacheKey("teams"), async () => this.source.getTeams());
   }
 
   async getPlayers(query: PlayerQuery = {}): Promise<Player[]> {
-    return this.cache.getOrSet(buildCacheKey("players", query), async () =>
+    return this.getFromCache(buildCacheKey("players", query), async () =>
       this.source.getPlayers(query)
     );
   }
 
   async getGames(query: NflWeekQuery = {}): Promise<Game[]> {
-    return this.cache.getOrSet(buildCacheKey("games", query), async () =>
-      this.source.getGames(query)
-    );
+    return this.getFromCache(buildCacheKey("games", query), async () => this.source.getGames(query));
   }
 
   async getPlayerStats(query: PlayerStatsQuery = {}): Promise<PlayerStat[]> {
-    return this.cache.getOrSet(buildCacheKey("playerStats", query), async () =>
+    return this.getFromCache(buildCacheKey("playerStats", query), async () =>
       this.source.getPlayerStats(query)
     );
   }
 
   async getTeamStats(query: TeamStatsQuery = {}): Promise<TeamStat[]> {
-    return this.cache.getOrSet(buildCacheKey("teamStats", query), async () =>
+    return this.getFromCache(buildCacheKey("teamStats", query), async () =>
       this.source.getTeamStats(query)
     );
   }

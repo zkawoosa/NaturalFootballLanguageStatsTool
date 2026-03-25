@@ -13,6 +13,8 @@ export function createDataSource(): IDataSource {
   const source = new PublicNflSource({
     baseUrl: runtimeConfig.balldontlieBaseUrl,
     timeoutMs: runtimeConfig.requestTimeoutMs,
+    requestWindowMax: runtimeConfig.requestsPerMinute,
+    requestWindowMs: 60_000,
   });
 
   dataSourceInstance = new CachedDataSource(source, {

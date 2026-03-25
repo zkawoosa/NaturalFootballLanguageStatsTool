@@ -115,11 +115,13 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Run full manual QA pass on corpus.
 - [X] Prepare deploy config.
 - [X] Prepare README.
-- [ ] Make hosting health checks cache-aware or internal-only so deploy probes do not consume upstream request budget.
+- [X] Add stale cache fallback for source failures and expose `dataStale` indicators in query responses.
+- [X] Make hosting health checks cache-aware or internal-only so deploy probes do not consume upstream request budget.
 - [X] Remove build-time source-health snapshot from homepage and move source-health checks to a client-triggered flow.
 - [X] Investigate and remove remaining build-time upstream `teams` requests during static generation.
 - [X] Address external review findings: clarification context wiring, season aggregation, pagination completeness, and truncation safeguards.
 - [X] Separate source failures from clarification so unsupported upstream failures show as a distinct state in API responses and UI.
+- [X] Add source-health regression test that verifies probes call the uncached freshness path (`getTeamsFresh`) instead of the cached path.
 - [ ] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
 - [X] Add GitHub Actions CI for format, lint, tests, and build.
 - [ ] Deploy preview, smoke test, record known limitations.

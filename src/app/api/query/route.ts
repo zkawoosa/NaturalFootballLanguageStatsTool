@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server.js";
 
 import type { QueryRequestBody, QueryResponse } from "../../../lib/contracts/api.ts";
-import { NflSourceError } from "../../../lib/data/publicNflSource.ts";
+import { NflSourceError, type NflSourceErrorCode } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
 import type { CanonicalPlayerStat, CanonicalTeamStat } from "../../../lib/schema/canonical.ts";
 import { parseNflQuery, type ParsedQuery } from "../../../lib/parser/nlpParser.ts";
@@ -18,6 +18,30 @@ const RATE_LIMIT_SUMMARY_MESSAGE =
   "Due to data source constraints, we are limited to 5 queries per minute for now";
 const SOURCE_UNAVAILABLE_SUMMARY_MESSAGE =
   "Data source is temporarily unavailable. Please try again.";
+const SOURCE_AUTH_MESSAGE =
+  "The source API key is invalid or expired. Update your BL_API_KEY configuration.";
+const SOURCE_NOT_FOUND_SUMMARY_MESSAGE = "Requested data was not found.";
+const SOURCE_TIMEOUT_SUMMARY_MESSAGE = "The source request timed out. Please try again.";
+const SOURCE_RESPONSE_SUMMARY_MESSAGE = "The source returned an unexpected response.";
+
+function resolveSourceSummary(code: NflSourceErrorCode): string {
+  if (code === "RATE_LIMIT") return RATE_LIMIT_SUMMARY_MESSAGE;
+  if (code === "UNAUTHORIZED") return SOURCE_AUTH_MESSAGE;
+  if (code === "NOT_FOUND") return SOURCE_NOT_FOUND_SUMMARY_MESSAGE;
+  if (code === "TIMEOUT") return SOURCE_TIMEOUT_SUMMARY_MESSAGE;
+  if (code === "INVALID_RESPONSE") return SOURCE_RESPONSE_SUMMARY_MESSAGE;
+  return SOURCE_UNAVAILABLE_SUMMARY_MESSAGE;
+}
+
+function consumeDataStaleHint(service: ICanonicalStatsService): boolean {
+  const typedService = service as {
+    consumeDataStaleHint?: () => boolean;
+  };
+  if (typeof typedService.consumeDataStaleHint !== "function") {
+    return false;
+  }
+  return typedService.consumeDataStaleHint();
+}
 
 export async function POST(request: Request) {
   const body = await parseRequestBody(request);
@@ -95,6 +119,7 @@ async function buildQueryResponse(
 
   try {
     const dataResponse = await hydrateResults(parsed, service);
+    const dataStale = consumeDataStaleHint(service);
     return {
       intent: parsed.intent,
       slots: parsed.slots as Record<string, unknown>,
@@ -103,21 +128,31 @@ async function buildQueryResponse(
       confidence: parsed.confidence,
       alternatives: dataResponse.alternatives,
       needsClarification: false,
+      dataStale,
       dataSource: "public",
     };
   } catch (error) {
     const isRateLimited = error instanceof NflSourceError && error.code === "RATE_LIMIT";
+    const sourceError = error instanceof NflSourceError ? error : undefined;
+    const errorCode = sourceError?.code ?? "SOURCE_UNAVAILABLE";
     return {
       intent: parsed.intent,
       slots: parsed.slots as Record<string, unknown>,
       results: [],
-      summary: isRateLimited ? RATE_LIMIT_SUMMARY_MESSAGE : SOURCE_UNAVAILABLE_SUMMARY_MESSAGE,
+      summary: isRateLimited
+        ? RATE_LIMIT_SUMMARY_MESSAGE
+        : sourceError
+          ? resolveSourceSummary(sourceError.code)
+          : SOURCE_UNAVAILABLE_SUMMARY_MESSAGE,
       confidence: parsed.confidence,
       alternatives: [],
       needsClarification: false,
+      dataStale: false,
       dataSource: "public",
       sourceError: true,
-      errorCode: isRateLimited ? "RATE_LIMIT" : "SOURCE_UNAVAILABLE",
+      errorCode,
+      sourceErrorMessage: sourceError?.message,
+      sourceRetryAfterMs: sourceError?.retryAfterMs,
       clarificationPrompt: undefined,
     };
   }
