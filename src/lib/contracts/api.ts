@@ -116,4 +116,5 @@ export type StatusResponse = {
   checkedAt: string;
   cache?: CacheStatus;
   error?: string;
+  warnings?: string[];
 };

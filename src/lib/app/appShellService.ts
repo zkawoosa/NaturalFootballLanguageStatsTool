@@ -31,6 +31,7 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
   const startedAt = Date.now();
   const checkedAt = new Date().toISOString();
   const healthSource = source as CacheAwareSource;
+  const warnings: string[] = [];
   // Health checks intentionally bypass cache to avoid stale "healthy" status.
   const probe =
     typeof healthSource.getTeamsFresh === "function" ? healthSource.getTeamsFresh : source.getTeams;
@@ -40,14 +41,29 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
 
   try {
     await probe.call(source);
-    await (statsProbe ? statsProbe.call(source) : Promise.resolve());
-    return {
+    if (statsProbe) {
+      try {
+        await statsProbe.call(source);
+      } catch (error) {
+        warnings.push(
+          error instanceof Error ? `stats probe failed: ${error.message}` : "stats probe failed"
+        );
+      }
+    }
+
+    const response: StatusResponse = {
       source: "balldontlie",
       healthy: true,
       latencyMs: Date.now() - startedAt,
       checkedAt,
       cache: resolveCacheStats(source),
     };
+
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown source failure";
     return {
