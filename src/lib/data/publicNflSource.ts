@@ -1,4 +1,4 @@
-import { getBalldontlieApiKey } from "../config.ts";
+import { getBalldontlieApiKeys } from "../config.ts";
 import { createRequestId, logEvent } from "../logger.ts";
 
 export type NflSourceErrorCode =
@@ -156,6 +156,7 @@ export interface IDataSource {
   getGames(query?: NflWeekQuery): Promise<Game[]>;
   getPlayerStats(query?: PlayerStatsQuery): Promise<PlayerStat[]>;
   getTeamStats(query?: TeamStatsQuery): Promise<TeamStat[]>;
+  probeStatsAccess?: () => Promise<void>;
 }
 
 const DEFAULT_BASE_URLS = ["https://api.balldontlie.io/nfl/v1", "https://api.balldontlie.io/v1"];
@@ -172,6 +173,7 @@ const STRICT_RETRIES_BY_STATUS = {
   429: 2,
 } as const;
 const RETRY_POLICY_DESCRIPTION = "strict_429_only";
+type BalldontlieAuthMode = "both" | "authorizationOnly" | "xApiKeyOnly";
 
 export const STRICT_429_RETRY_POLICY: NflRetryPolicy = {
   id: RETRY_POLICY_DESCRIPTION,
@@ -196,6 +198,7 @@ export class PublicNflSource implements IDataSource {
   private circuitBreakerWindowMs: number;
   private circuitBreakerCooldownMs: number;
   private nowProvider: () => number;
+  private balldontlieApiKeysProvider: () => string[];
 
   constructor(opts?: {
     baseUrl?: string;
@@ -206,6 +209,7 @@ export class PublicNflSource implements IDataSource {
     circuitBreakerWindowMs?: number;
     circuitBreakerCooldownMs?: number;
     nowProvider?: () => number;
+    balldontlieApiKeys?: string[];
   }) {
     this.baseUrl = opts?.baseUrl?.replace(/\/$/, "") || DEFAULT_BASE_URLS[0];
     this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -220,6 +224,9 @@ export class PublicNflSource implements IDataSource {
     this.circuitBreakerCooldownMs =
       opts?.circuitBreakerCooldownMs ?? DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS;
     this.nowProvider = opts?.nowProvider ?? (() => Date.now());
+    this.balldontlieApiKeysProvider = () =>
+      (opts?.balldontlieApiKeys?.length ? opts.balldontlieApiKeys : undefined) ??
+      getBalldontlieApiKeys();
   }
 
   async getTeams(): Promise<Team[]> {
@@ -365,6 +372,12 @@ export class PublicNflSource implements IDataSource {
         pointsAgainst: points.pointsAgainst,
       };
     });
+  }
+
+  async probeStatsAccess(): Promise<void> {
+    const params = new URLSearchParams();
+    params.set("per_page", "1");
+    await this.fetchFromSource("stats", params);
   }
 
   private toParams(query: Record<string, unknown>): URLSearchParams {
@@ -690,33 +703,6 @@ export class PublicNflSource implements IDataSource {
     return allRows;
   }
 
-  private sumOrNull(
-    current: number | null | undefined,
-    next: number | null | undefined
-  ): number | null {
-    if (current === null || typeof current === "undefined") {
-      return next ?? null;
-    }
-    if (next === null || typeof next === "undefined") {
-      return current;
-    }
-    return current + next;
-  }
-
-  private totalYardsFromPlayerStats(raw: RawPlayerStat): number | null {
-    const passYards = this.asNumber(raw.passing_yards);
-    const rushYards = this.asNumber(raw.rushing_yards);
-    if (passYards === null && rushYards === null) return null;
-    return (passYards ?? 0) + (rushYards ?? 0);
-  }
-
-  private totalTurnoversFromPlayerStat(stat: PlayerStat): number | null {
-    return this.sumOrNull(
-      this.sumOrNull(stat.interceptions, null),
-      this.sumOrNull(stat.fumblesLost, null)
-    );
-  }
-
   private async fetchFromSource<T>(
     path: string,
     params: URLSearchParams = new URLSearchParams()
@@ -737,14 +723,21 @@ export class PublicNflSource implements IDataSource {
       }
 
       let tries = 0;
+      const apiKeys = this.balldontlieApiKeysProvider();
+      let keyIndex = 0;
+      let authModeIndex = 0;
       const route = `${base}${base.endsWith("/") ? "" : "/"}${path}`;
       let shouldRetry = true;
+      const authModes = this.getAuthModes();
       while (shouldRetry) {
+        const apiKey = apiKeys[keyIndex] ?? "";
+        const authMode = authModes[authModeIndex] ?? "both";
         let response: Response;
         try {
           this.ensureCircuitHealthy(route);
           this.ensureSourceBudget(route);
-          response = await this.safeRequest(url.toString(), requestId, route);
+          const modeUrl = this.applyAuthModeToRequestUrl(url);
+          response = await this.safeRequest(modeUrl.toString(), requestId, route, apiKey, authMode);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
           if (error instanceof NflSourceError) {
@@ -891,6 +884,67 @@ export class PublicNflSource implements IDataSource {
           errorMessage: lastError.message,
         });
 
+        if (response.status === 401) {
+          if (keyIndex < apiKeys.length - 1) {
+            await logEvent({
+              requestId,
+              eventType: "source",
+              source: "balldontlie",
+              method: "GET",
+              route,
+              status: response.status,
+              ok: false,
+              latencyMs: Date.now() - startedAt,
+              retryCount: tries,
+              level: "warn",
+              ts: new Date().toISOString(),
+              errorCode: code,
+              errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)}. Trying fallback key.`,
+            });
+            keyIndex += 1;
+            authModeIndex = 0;
+            tries = 0;
+            continue;
+          }
+
+          if (authModeIndex + 1 < authModes.length) {
+            await logEvent({
+              requestId,
+              eventType: "source",
+              source: "balldontlie",
+              method: "GET",
+              route,
+              status: response.status,
+              ok: false,
+              latencyMs: Date.now() - startedAt,
+              retryCount: tries,
+              level: "warn",
+              ts: new Date().toISOString(),
+              errorCode: code,
+              errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)} with auth mode ${this.formatAuthMode(authMode)}. Trying alternate auth mode.`,
+            });
+            authModeIndex += 1;
+            tries = 0;
+            continue;
+          }
+
+          await logEvent({
+            requestId,
+            eventType: "source",
+            source: "balldontlie",
+            method: "GET",
+            route,
+            status: response.status,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            retryCount: tries,
+            level: "warn",
+            ts: new Date().toISOString(),
+            errorCode: code,
+            errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)} with auth mode ${this.formatAuthMode(authMode)}.`,
+          });
+        }
+
         if (response.status !== 404 && response.status !== 401) {
           this.noteCircuitFailure(lastError);
           throw lastError;
@@ -967,13 +1021,14 @@ export class PublicNflSource implements IDataSource {
     return undefined;
   }
 
-  private safeRequest(url: string, requestId: string, endpoint: string): Promise<Response> {
-    const apiKey = getBalldontlieApiKey();
-    const headers = {
-      Accept: "application/json",
-      "X-API-Key": apiKey,
-      Authorization: `Bearer ${apiKey}`,
-    };
+  private safeRequest(
+    url: string,
+    requestId: string,
+    endpoint: string,
+    apiKey: string,
+    authMode: BalldontlieAuthMode
+  ): Promise<Response> {
+    const headers = this.buildAuthHeaders(apiKey, authMode);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -1003,6 +1058,73 @@ export class PublicNflSource implements IDataSource {
       });
   }
 
+  private buildAuthHeaders(apiKey: string, authMode: BalldontlieAuthMode): HeadersInit {
+    if (authMode === "authorizationOnly") {
+      return {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      };
+    }
+
+    if (authMode === "xApiKeyOnly") {
+      return {
+        Accept: "application/json",
+        "X-API-Key": apiKey,
+      };
+    }
+
+    return {
+      Accept: "application/json",
+      "X-API-Key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+
+  private getAuthModes(): BalldontlieAuthMode[] {
+    return ["both", "xApiKeyOnly", "authorizationOnly"];
+  }
+
+  private formatAuthMode(authMode: BalldontlieAuthMode): string {
+    if (authMode === "authorizationOnly") {
+      return "authorization-only";
+    }
+    if (authMode === "xApiKeyOnly") {
+      return "x-api-key-only";
+    }
+    return "both-headers";
+  }
+
+  private applyAuthModeToRequestUrl(baseUrl: URL): URL {
+    return baseUrl;
+  }
+
+  private sumOrNull(
+    current: number | null | undefined,
+    next: number | null | undefined
+  ): number | null {
+    if (current === null || typeof current === "undefined") {
+      return next ?? null;
+    }
+    if (next === null || typeof next === "undefined") {
+      return current;
+    }
+    return current + next;
+  }
+
+  private totalYardsFromPlayerStats(raw: RawPlayerStat): number | null {
+    const passYards = this.asNumber(raw.passing_yards);
+    const rushYards = this.asNumber(raw.rushing_yards);
+    if (passYards === null && rushYards === null) return null;
+    return (passYards ?? 0) + (rushYards ?? 0);
+  }
+
+  private totalTurnoversFromPlayerStat(stat: PlayerStat): number | null {
+    return this.sumOrNull(
+      this.sumOrNull(stat.interceptions, null),
+      this.sumOrNull(stat.fumblesLost, null)
+    );
+  }
+
   private mapStatusToErrorCode(status: number): NflSourceErrorCode {
     if (status === 401) return "UNAUTHORIZED";
     if (status === 404) return "NOT_FOUND";
@@ -1016,6 +1138,14 @@ export class PublicNflSource implements IDataSource {
     } catch {
       return value;
     }
+  }
+
+  private maskApiKey(apiKey: string): string {
+    if (apiKey.length <= 8) {
+      return "********";
+    }
+
+    return `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
   }
 }
 

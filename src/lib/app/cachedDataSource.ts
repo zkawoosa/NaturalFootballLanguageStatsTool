@@ -87,6 +87,7 @@ export type CacheAwareDataSource = IDataSource & {
   getCacheStats: () => CacheStats;
   getTeamsFresh: () => Promise<Team[]>;
   consumeDataStaleHint: () => boolean;
+  probeStatsAccess: () => Promise<void>;
 };
 
 type CachedDataSourceOptions = {
@@ -151,6 +152,13 @@ export class CachedDataSource implements CacheAwareDataSource {
     return this.getFromCache(buildCacheKey("playerStats", query), async () =>
       this.source.getPlayerStats(query)
     );
+  }
+
+  async probeStatsAccess(): Promise<void> {
+    if (typeof this.source.probeStatsAccess === "function") {
+      return this.source.probeStatsAccess();
+    }
+    await this.source.getPlayers({});
   }
 
   async getTeamStats(query: TeamStatsQuery = {}): Promise<TeamStat[]> {

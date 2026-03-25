@@ -103,6 +103,129 @@ test("public nfl source throws RATE_LIMIT after exhausting strict 429 retries", 
   assert.equal(callCount, 3);
 });
 
+test("public nfl source retries with fallback API key when primary key is unauthorized", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalBlKey = process.env.BL_API_KEY;
+  const originalApiKey = process.env.API_KEY;
+
+  process.env.BL_API_KEY = "wrong-key";
+  process.env.API_KEY = "fallback-key";
+
+  const requestKeys: string[] = [];
+  globalThis.fetch = async (_input, init) => {
+    const headers = new Headers(init?.headers as HeadersInit | undefined);
+    const apiKeyHeader = headers.get("x-api-key") ?? "";
+    requestKeys.push(apiKeyHeader);
+
+    if (apiKeyHeader === "wrong-key") {
+      return new Response("{}", { status: 401 });
+    }
+
+    return new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 1,
+            player_id: 10,
+            season: 2025,
+            week: 7,
+            season_type: "REG",
+            passing_yards: 100,
+          },
+        ],
+        meta: { total_pages: 1 },
+      }),
+      { status: 200 }
+    );
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalBlKey === undefined) {
+      delete process.env.BL_API_KEY;
+    } else {
+      process.env.BL_API_KEY = originalBlKey;
+    }
+
+    if (originalApiKey === undefined) {
+      delete process.env.API_KEY;
+    } else {
+      process.env.API_KEY = originalApiKey;
+    }
+  });
+
+  const source = new PublicNflSource();
+  const stats = await source.getPlayerStats({ season: 2025, week: 7 });
+
+  assert.equal(requestKeys.length, 2);
+  assert.equal(requestKeys[0], "wrong-key");
+  assert.equal(requestKeys[1], "fallback-key");
+  assert.equal(stats.length, 1);
+  assert.equal(stats[0].id, "1");
+});
+
+test("public nfl source retries with alternate auth mode when header format is rejected", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalBlKey = process.env.BL_API_KEY;
+
+  process.env.BL_API_KEY = "test-key";
+
+  const authModes: string[] = [];
+  globalThis.fetch = async (_input, init) => {
+    const headers = new Headers(init?.headers as HeadersInit | undefined);
+    const hasBearer = headers.get("authorization") ?? "";
+    const hasApiKey = headers.get("x-api-key") ?? "";
+
+    if (hasBearer && hasApiKey) {
+      authModes.push("both");
+    } else if (hasBearer) {
+      authModes.push("authorization");
+    } else if (hasApiKey) {
+      authModes.push("x-api-key");
+    } else {
+      authModes.push("none");
+    }
+
+    if (hasBearer && hasApiKey) {
+      return new Response("{}", { status: 401 });
+    }
+
+    return new Response(
+      JSON.stringify({
+        data: [
+          {
+            id: 1,
+            name: "Falcons",
+            abbreviation: "ATL",
+            city: "Atlanta",
+            conference: "NFC",
+            division: { name: "South" },
+          },
+        ],
+      }),
+      { status: 200 }
+    );
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalBlKey === undefined) {
+      delete process.env.BL_API_KEY;
+    } else {
+      process.env.BL_API_KEY = originalBlKey;
+    }
+  });
+
+  const source = new PublicNflSource();
+  const teams = await source.getTeams();
+
+  assert.equal(authModes[0], "both");
+  assert.equal(authModes[1], "x-api-key");
+  assert.equal(authModes.length, 2);
+  assert.equal(teams.length, 1);
+  assert.equal(teams[0].abbreviation, "ATL");
+});
+
 test("public nfl source blocks the 6th request in a rolling 60-second local window", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.BL_API_KEY;

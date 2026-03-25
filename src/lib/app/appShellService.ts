@@ -14,6 +14,7 @@ export type AppShellViewModel = {
 
 type CacheAwareSource = IDataSource & {
   getTeamsFresh?: () => Promise<unknown>;
+  probeStatsAccess?: () => Promise<unknown>;
   getCacheStats?: () => CacheStatus;
 };
 
@@ -34,8 +35,12 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
   const probe =
     typeof healthSource.getTeamsFresh === "function" ? healthSource.getTeamsFresh : source.getTeams;
 
+  const statsProbe =
+    typeof healthSource.probeStatsAccess === "function" ? healthSource.probeStatsAccess : null;
+
   try {
     await probe.call(source);
+    await (statsProbe ? statsProbe() : Promise.resolve());
     return {
       source: "balldontlie",
       healthy: true,

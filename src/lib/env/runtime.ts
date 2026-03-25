@@ -4,6 +4,7 @@ export type RuntimeEnvConfig = {
   source: NflSourceName;
   balldontlieBaseUrl: string;
   balldontlieApiKey: string;
+  balldontlieApiKeys: string[];
   fetchTimeoutMs: number;
   requestTimeoutMs: number;
   requestRetries: number;
@@ -21,6 +22,7 @@ const ENV_DEFAULTS: RuntimeEnvConfig = {
   source: "balldontlie",
   balldontlieBaseUrl: "https://api.balldontlie.io/nfl/v1",
   balldontlieApiKey: "",
+  balldontlieApiKeys: [],
   fetchTimeoutMs: 15_000,
   requestTimeoutMs: 12_000,
   requestRetries: 2,
@@ -33,6 +35,63 @@ const ENV_DEFAULTS: RuntimeEnvConfig = {
   cacheEnabled: true,
   cacheTtlSeconds: 300,
 };
+
+function normalizeKey(value: string | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.substring(1, trimmed.length - 1).trim();
+  }
+  return trimmed;
+}
+
+function normalizeBalldontlieBaseUrl(value: string | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return ENV_DEFAULTS.balldontlieBaseUrl;
+  }
+
+  const withSlashRemoved = trimmed.replace(/\/+$/, "");
+
+  if (!/^https?:\/\/api\.balldontlie\.io/i.test(withSlashRemoved)) {
+    return withSlashRemoved;
+  }
+
+  if (/\/nfl\/v1$/i.test(withSlashRemoved)) {
+    return withSlashRemoved;
+  }
+
+  if (/\/v1$/i.test(withSlashRemoved)) {
+    return `${withSlashRemoved.replace(/\/v1$/i, "")}/nfl/v1`;
+  }
+
+  return withSlashRemoved;
+}
+
+function collectDefinedSecrets(env: NodeJS.ProcessEnv): string[] {
+  const candidateKeys = [
+    env.BL_API_KEY,
+    env.BALLDONTLIE_API_KEY,
+    env.BALDONTLIE_API_KEY,
+    env.BLD_API_KEY,
+    env.NFL_API_KEY,
+    env.API_KEY,
+  ];
+  const normalizedKeys = candidateKeys
+    .map((candidate) => normalizeKey(candidate))
+    .filter((key) => key.length > 0);
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const key of normalizedKeys) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(key);
+  }
+  return deduped;
+}
 
 function parseIntEnv(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -51,11 +110,14 @@ function parseBoolEnv(value: string | undefined, fallback: boolean): boolean {
 
 export function loadRuntimeEnv(env: NodeJS.ProcessEnv = process.env): RuntimeEnvConfig {
   const source = env.NFL_SOURCE === "balldontlie" ? "balldontlie" : ENV_DEFAULTS.source;
+  const balldontlieApiKeys = collectDefinedSecrets(env);
+  const balldontlieApiKey = balldontlieApiKeys[0] || ENV_DEFAULTS.balldontlieApiKey;
 
   return {
     source,
-    balldontlieBaseUrl: env.BL_API_BASE_URL?.trim() || ENV_DEFAULTS.balldontlieBaseUrl,
-    balldontlieApiKey: env.BL_API_KEY?.trim() || ENV_DEFAULTS.balldontlieApiKey,
+    balldontlieBaseUrl: normalizeBalldontlieBaseUrl(env.BL_API_BASE_URL),
+    balldontlieApiKey,
+    balldontlieApiKeys,
     fetchTimeoutMs: parseIntEnv(env.BL_FETCH_TIMEOUT_MS, ENV_DEFAULTS.fetchTimeoutMs),
     requestTimeoutMs: parseIntEnv(env.BL_REQUEST_TIMEOUT_MS, ENV_DEFAULTS.requestTimeoutMs),
     requestRetries: parseIntEnv(env.BL_REQUEST_RETRIES, ENV_DEFAULTS.requestRetries),

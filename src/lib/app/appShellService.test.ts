@@ -97,3 +97,17 @@ test("app shell service probes the freshest teams endpoint when available", asyn
   assert.equal(getTeamsCalls, 0);
   assert.equal(getTeamsFreshCalls, 1);
 });
+
+test("app shell status fails when stats probe reports unauthorized", async () => {
+  const source = createFakeSource({
+    getTeamsFresh: async () => [{ id: "1", name: "Falcons", abbreviation: "ATL" }],
+    probeStatsAccess: async () => {
+      throw new Error("Balldontlie request failed (401) for stats: Unauthorized");
+    },
+  });
+
+  const status = await getSourceHealth(source);
+
+  assert.equal(status.healthy, false);
+  assert.equal(status.error, "Balldontlie request failed (401) for stats: Unauthorized");
+});
