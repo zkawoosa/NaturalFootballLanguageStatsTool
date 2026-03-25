@@ -105,6 +105,13 @@ run_status() {
     echo "FAIL: status payload reports unhealthy source: ${response}" >&2
     return 1
   fi
+  if echo "${response}" | grep -qi '"warnings"'; then
+    echo "WARN: status payload includes warnings: ${response}" >&2
+    if echo "${response}" | grep -qi '401'; then
+      echo "FAIL: status payload includes authorization warning from source probe." >&2
+      return 1
+    fi
+  fi
   echo "PASS: status payload includes health field"
 }
 

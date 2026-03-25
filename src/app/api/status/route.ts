@@ -48,6 +48,9 @@ function safeStatusResponse(value: unknown, fallbackCheckedAt: string): StatusRe
         ? (payload.cache as StatusResponse["cache"])
         : undefined,
     ...(typeof payload.error === "string" ? { error: payload.error } : {}),
+    ...(Array.isArray(payload.warnings)
+      ? { warnings: payload.warnings.filter((value) => typeof value === "string") }
+      : {}),
   };
 }
 
