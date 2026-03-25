@@ -40,7 +40,7 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
 
   try {
     await probe.call(source);
-    await (statsProbe ? statsProbe() : Promise.resolve());
+    await (statsProbe ? statsProbe.call(source) : Promise.resolve());
     return {
       source: "balldontlie",
       healthy: true,
