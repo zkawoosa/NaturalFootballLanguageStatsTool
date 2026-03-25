@@ -736,7 +736,7 @@ export class PublicNflSource implements IDataSource {
         try {
           this.ensureCircuitHealthy(route);
           this.ensureSourceBudget(route);
-          const modeUrl = this.applyAuthModeToRequestUrl(url);
+          const modeUrl = this.applyAuthModeToRequestUrl(url, apiKey);
           response = await this.safeRequest(modeUrl.toString(), requestId, route, apiKey, authMode);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";
@@ -1094,7 +1094,10 @@ export class PublicNflSource implements IDataSource {
     return "both-headers";
   }
 
-  private applyAuthModeToRequestUrl(baseUrl: URL): URL {
+  private applyAuthModeToRequestUrl(baseUrl: URL, apiKey: string): URL {
+    if (!apiKey) {
+      return baseUrl;
+    }
     return baseUrl;
   }
 

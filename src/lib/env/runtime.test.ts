@@ -46,3 +46,31 @@ test("loadRuntimeEnv deduplicates and orders balldontlie API keys", () => {
     }
   }
 });
+
+test("loadRuntimeEnv splits and normalizes multi-key env values", () => {
+  const original = { ...process.env };
+
+  try {
+    process.env.BL_API_KEY = "  Bearer primary123  , secondary456 \nBearer tertiary789 ;  ";
+    process.env.API_KEY = "  Bearer primary123";
+
+    const config = loadRuntimeEnv();
+    assert.deepEqual(config.balldontlieApiKeys, [
+      "primary123",
+      "secondary456",
+      "tertiary789",
+      "primary",
+    ]);
+    assert.equal(config.balldontlieApiKey, "primary123");
+  } finally {
+    for (const key of Object.keys(process.env)) {
+      if (key in original) {
+        if (original[key] === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = original[key];
+        }
+      }
+    }
+  }
+});

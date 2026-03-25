@@ -48,6 +48,19 @@ function normalizeKey(value: string | undefined): string {
   return trimmed;
 }
 
+function splitCandidateKeys(value: string): string[] {
+  return value
+    .split(/[,;\n]/)
+    .map((raw) => raw.trim())
+    .filter((candidate) => candidate.length > 0)
+    .map((candidate) => normalizeKey(candidate))
+    .filter((candidate) => candidate.length > 0)
+    .map((candidate) => {
+      const bearerPrefix = candidate.match(/^bearer\s+(.+)$/i);
+      return bearerPrefix ? bearerPrefix[1].trim() : candidate;
+    });
+}
+
 function normalizeBalldontlieBaseUrl(value: string | undefined): string {
   const trimmed = value?.trim();
   if (!trimmed) {
@@ -80,9 +93,7 @@ function collectDefinedSecrets(env: NodeJS.ProcessEnv): string[] {
     env.NFL_API_KEY,
     env.API_KEY,
   ];
-  const normalizedKeys = candidateKeys
-    .map((candidate) => normalizeKey(candidate))
-    .filter((key) => key.length > 0);
+  const normalizedKeys = candidateKeys.flatMap((candidate) => splitCandidateKeys(candidate || ""));
   const deduped: string[] = [];
   const seen = new Set<string>();
   for (const key of normalizedKeys) {
