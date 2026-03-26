@@ -103,6 +103,49 @@ test("public nfl source throws RATE_LIMIT after exhausting strict 429 retries", 
   assert.equal(callCount, 3);
 });
 
+test("public nfl source counts failed retry attempts against the local request budget", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.BL_API_KEY;
+  process.env.BL_API_KEY = "test-key";
+
+  let callCount = 0;
+  globalThis.fetch = async () => {
+    callCount += 1;
+    return new Response("{}", {
+      status: 429,
+      headers: {
+        "retry-after": "0",
+      },
+    });
+  };
+
+  const source = new PublicNflSource({
+    requestWindowMax: 2,
+  });
+  const originalWait = (source as unknown as { wait: (ms: number) => Promise<void> }).wait;
+  (source as unknown as { wait: (ms: number) => Promise<void> }).wait = async () => {
+    // no-op in tests
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    process.env.BL_API_KEY = originalApiKey;
+    (source as unknown as { wait: (ms: number) => Promise<void> }).wait = originalWait;
+  });
+
+  let thrown: unknown = undefined;
+  try {
+    await source.getTeams();
+    assert.fail("expected getTeams to throw");
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert.ok(thrown instanceof NflSourceError);
+  assert.equal((thrown as NflSourceError).code, "RATE_LIMIT");
+  assert.equal(callCount, 2);
+});
+
 test("public nfl source retries with fallback API key when primary key is unauthorized", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalBlKey = process.env.BL_API_KEY;
@@ -246,6 +289,7 @@ test("public nfl source does not open circuit breaker for repeated 401 authoriza
   const source = new PublicNflSource({
     circuitBreakerFailureThreshold: 1,
     circuitBreakerCooldownMs: 60_000,
+    requestWindowMax: 10,
   });
 
   for (let i = 0; i < 3; i += 1) {

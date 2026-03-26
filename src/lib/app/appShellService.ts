@@ -41,10 +41,12 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
 
   try {
     await probe.call(source);
+    let statsProbeError: string | null = null;
     if (statsProbe) {
       try {
         await statsProbe.call(source);
       } catch (error) {
+        statsProbeError = error instanceof Error ? error.message : "stats probe failed";
         warnings.push(
           error instanceof Error ? `stats probe failed: ${error.message}` : "stats probe failed"
         );
@@ -53,11 +55,15 @@ export async function getSourceHealth(source: IDataSource): Promise<StatusRespon
 
     const response: StatusResponse = {
       source: "balldontlie",
-      healthy: true,
+      healthy: statsProbeError === null,
       latencyMs: Date.now() - startedAt,
       checkedAt,
       cache: resolveCacheStats(source),
     };
+
+    if (statsProbeError) {
+      response.error = statsProbeError;
+    }
 
     if (warnings.length > 0) {
       response.warnings = warnings;

@@ -15,6 +15,7 @@ The current MVP supports player stats, team stats, leaderboard-style queries, co
 - Server-side `fetch`
 - In-memory caching
 - In-memory rate limiting / throttling
+- SQLite via `better-sqlite3`
 - BALLDONTLIE NFL API
 - Natural-language query parsing
 - Alias resolution and normalization pipeline
@@ -75,6 +76,8 @@ Why:
 
 That means the current design behaves most predictably on one running Node instance. A multi-instance or serverless deployment would fragment cache state and upstream rate-limit protection.
 
+The app now persists query history and cache entries to SQLite via `better-sqlite3` for local durability. Hot cache reads stay in memory, and the request-budget guard remains process-local.
+
 ## Data Source
 
 Current source:
@@ -97,7 +100,13 @@ The app includes:
 ### Prerequisites
 
 - Node.js `24.x`
-- npm `10.x`
+- npm `11.x`
+
+Runtime alignment note:
+
+- this repo pins Node with [`.nvmrc`](/Users/zainkawoosa/nfl-query/.nvmrc) and `package.json`
+- run `nvm use` before `npm install` or any validation command
+- native modules such as `better-sqlite3` should be installed and validated under the same Node major used in production
 
 ### Install
 
@@ -117,6 +126,7 @@ BL_REQUESTS_PER_MINUTE=5
 NFL_LOG_TO_FILE=0
 NFL_CACHE_ENABLED=1
 NFL_CACHE_TTL_SECONDS=300
+NFL_SQLITE_PATH=data/nfl-query.sqlite
 ```
 
 Important:
@@ -196,6 +206,9 @@ Optional behavior:
 Production note:
 
 - on Render, keep `NFL_LOG_TO_FILE=0` because the filesystem is ephemeral
+- SQLite persistence only survives restarts on hosts with a persistent filesystem
+- Render free web services can run the app with `better-sqlite3`, but they do not preserve the SQLite file across restarts or deploys
+- on Render, SQLite persistence requires a paid service with a persistent disk, and `NFL_SQLITE_PATH` must point inside that mounted disk path
 
 ## Deployment
 
@@ -209,6 +222,7 @@ Why Render fits this MVP:
 - easy GitHub-based deploy flow
 - supports server-side env vars
 - single-instance deployment model is a better fit for the app’s in-memory cache and request-budget logic
+- native Node addons such as `better-sqlite3` are supported on standard Node web services
 
 ### Render configuration
 
@@ -239,6 +253,7 @@ Deployment note:
 
 - upstream source budget is still `5 requests per minute`
 - cache and request throttling are process-local, not shared across instances
+- SQLite-backed cache/history persistence depends on the host filesystem and will not survive restarts on ephemeral disks
 - comparator parsing is still largely keyword-based
 - health checks need to remain budget-aware so hosting probes do not burn source quota unnecessarily
 - this is an MVP and does not yet cover every NFL stat phrasing or every unsupported-domain cue

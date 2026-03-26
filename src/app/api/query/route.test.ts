@@ -539,6 +539,55 @@ test("POST /api/query returns 400 when body is invalid JSON", async () => {
   assert.equal(body.code, "INVALID_JSON");
 });
 
+test("POST /api/query returns 400 when context fields have invalid types", async () => {
+  const invalidBodies = [
+    {
+      query: "team stats week 6",
+      context: {
+        team: ["ATL"],
+      },
+    },
+    {
+      query: "team stats week 6",
+      context: {
+        player: 17,
+      },
+    },
+    {
+      query: "team stats week 6",
+      context: {
+        stat: "",
+      },
+    },
+    {
+      query: "team stats week 6",
+      context: {
+        season: "2024",
+      },
+    },
+    {
+      query: "team stats week 6",
+      context: {
+        week: 6.5,
+      },
+    },
+  ];
+
+  for (const bodyValue of invalidBodies) {
+    const request = new Request("http://localhost/api/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(bodyValue),
+    });
+
+    const response = await POST(request);
+    const body = await readJson(response);
+
+    assert.equal(response.status, 400);
+    assert.equal(body.code, "INVALID_CONTEXT");
+  }
+});
+
 test("POST /api/query applies request context when the follow-up query omits team and season", async () => {
   let getTeamsCalls = 0;
   let getTeamStatsCalls = 0;

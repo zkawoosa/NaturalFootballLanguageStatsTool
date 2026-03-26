@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "engines": {
     "node": ">=24 <25",
-    "npm": ">=10 <11"
+    "npm": ">=11 <12"
   },
   "private": true,
   "type": "module",
-  "packageManager": "npm@10.9.0",
+  "packageManager": "npm@11.11.0",
   "scripts": {
+    "preinstall": "node -e \"const nodeMajor = Number(process.versions.node.split('.')[0]); const userAgent = process.env.npm_config_user_agent ?? ''; const npmMatch = userAgent.match(/npm\\/(\\d+)/); const npmMajor = npmMatch ? Number(npmMatch[1]) : null; if (nodeMajor !== 24) { console.error('Expected Node 24.x for this repo. Run `nvm use` before installing dependencies.'); process.exit(1); } if (npmMajor !== null && npmMajor !== 11) { console.error('Expected npm 11.x for this repo.'); process.exit(1); }\"",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:quiet": "NFL_QUERY_TEST_QUIET_LOGS=1 node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:watch": "node --test --watch --experimental-strip-types \"src/**/*.test.ts\"",
@@ -21,6 +22,7 @@
     "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.md\""
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -33,6 +35,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "next": "^14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

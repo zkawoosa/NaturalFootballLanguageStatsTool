@@ -1,3 +1,9 @@
+import {
+  clearExpiredPersistentCacheEntries,
+  readPersistentCacheEntry,
+  writePersistentCacheEntry,
+} from "../db/cachePersistence.ts";
+
 export type CacheStats = {
   enabled: boolean;
   ttlSeconds: number;
@@ -23,6 +29,23 @@ type CachedLoadResult<T> = {
   value: T;
   stale: boolean;
 };
+
+function isNodeTestRuntime(): boolean {
+  return process.execArgv.includes("--test") || process.argv.includes("--test");
+}
+
+function shouldUsePersistentCache(): boolean {
+  const configuredPath = process.env.NFL_SQLITE_PATH?.trim();
+  if (configuredPath) {
+    return true;
+  }
+
+  if (process.env.NFL_QUERY_TEST_QUIET_LOGS === "1") {
+    return false;
+  }
+
+  return !isNodeTestRuntime();
+}
 
 export class InMemoryRequestCache {
   private readonly enabled: boolean;
@@ -61,9 +84,10 @@ export class InMemoryRequestCache {
     }
 
     const currentTime = this.now();
-    const current = this.entries.get(key);
+    const current = this.entries.get(key) ?? this.readPersistentEntry(key);
 
     if (current && current.expiresAt > currentTime) {
+      this.entries.set(key, current);
       this.hits += 1;
       this.lastHitAt = new Date(currentTime).toISOString();
       return { value: current.value as T, stale: false };
@@ -84,10 +108,12 @@ export class InMemoryRequestCache {
 
     const request = (async () => {
       const value = await loader();
-      this.entries.set(key, {
+      const nextEntry = {
         value,
         expiresAt: this.now() + this.ttlMs,
-      });
+      };
+      this.entries.set(key, nextEntry);
+      this.writePersistentEntry(key, nextEntry);
       return { value, stale: false };
     })().catch((error) => {
       if (allowStale && staleValue !== undefined) {
@@ -123,9 +149,58 @@ export class InMemoryRequestCache {
         this.entries.delete(key);
       }
     }
+    this.clearPersistentEntries(currentTime);
   }
 
   private evictExpired() {
     this.clearExpiredEntries();
+  }
+
+  private readPersistentEntry(key: string): CacheEntry | undefined {
+    if (!shouldUsePersistentCache()) {
+      return undefined;
+    }
+
+    try {
+      const entry = readPersistentCacheEntry(key);
+      if (!entry) {
+        return undefined;
+      }
+
+      return {
+        value: entry.value,
+        expiresAt: entry.expiresAt,
+      };
+    } catch (error) {
+      console.warn("Unable to read persisted cache entry.");
+      console.warn(error instanceof Error ? error.message : String(error));
+      return undefined;
+    }
+  }
+
+  private writePersistentEntry(key: string, entry: CacheEntry): void {
+    if (!shouldUsePersistentCache()) {
+      return;
+    }
+
+    try {
+      writePersistentCacheEntry(key, entry.value, entry.expiresAt);
+    } catch (error) {
+      console.warn("Unable to persist cache entry.");
+      console.warn(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private clearPersistentEntries(currentTime: number): void {
+    if (!shouldUsePersistentCache()) {
+      return;
+    }
+
+    try {
+      clearExpiredPersistentCacheEntries(currentTime);
+    } catch (error) {
+      console.warn("Unable to clear expired persisted cache entries.");
+      console.warn(error instanceof Error ? error.message : String(error));
+    }
   }
 }

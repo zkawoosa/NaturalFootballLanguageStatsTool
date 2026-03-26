@@ -28,6 +28,7 @@ export interface ICanonicalStatsService {
   getTeamStats(query?: TeamStatsQuery): Promise<CanonicalTeamStat[]>;
   getPlayerStats(query?: PlayerStatsQuery): Promise<CanonicalPlayerStat[]>;
   consumeDataStaleHint?: () => boolean;
+  runWithRequestContext?: <T>(callback: () => Promise<T>) => Promise<T>;
 }
 
 const SOURCE_NAME: CanonicalSource = "balldontlie";
@@ -35,53 +36,54 @@ const UNKNOWN_SEASON = 0 as const;
 
 export class CanonicalStatsService implements ICanonicalStatsService {
   private readonly source: IDataSource;
-  private lastLookupUsedStaleData = false;
 
   constructor(source: IDataSource) {
     this.source = source;
   }
 
   async getTeams(): Promise<CanonicalTeam[]> {
-    this.notePotentialStaleData();
     const teams = await this.source.getTeams();
     return teams.map(this.toTeamRecord);
   }
 
   async getPlayers(query: PlayerQuery = {}): Promise<CanonicalPlayer[]> {
-    this.notePotentialStaleData();
     const players = await this.source.getPlayers(query);
     return players.map(this.toPlayerRecord);
   }
 
   async getGames(query: NflWeekQuery = {}): Promise<CanonicalGame[]> {
-    this.notePotentialStaleData();
     const games = await this.source.getGames(query);
     return games.map(this.toGameRecord);
   }
 
   async getTeamStats(query: TeamStatsQuery = {}): Promise<CanonicalTeamStat[]> {
-    this.notePotentialStaleData();
     const teamStats = await this.source.getTeamStats(query);
     return teamStats.map(this.toTeamStatRecord);
   }
 
   async getPlayerStats(query: PlayerStatsQuery = {}): Promise<CanonicalPlayerStat[]> {
-    this.notePotentialStaleData();
     const playerStats = await this.source.getPlayerStats(query);
     return playerStats.map(this.toPlayerStatRecord);
   }
 
   consumeDataStaleHint(): boolean {
-    const value = this.lastLookupUsedStaleData;
-    this.lastLookupUsedStaleData = false;
-    return value;
+    const source = this.source as { consumeDataStaleHint?: () => boolean };
+    if (typeof source.consumeDataStaleHint !== "function") {
+      return false;
+    }
+
+    return source.consumeDataStaleHint();
   }
 
-  private notePotentialStaleData(): void {
-    const source = this.source as { consumeDataStaleHint?: () => boolean };
-    if (typeof source.consumeDataStaleHint === "function") {
-      this.lastLookupUsedStaleData ||= source.consumeDataStaleHint();
+  async runWithRequestContext<T>(callback: () => Promise<T>): Promise<T> {
+    const source = this.source as {
+      runWithRequestContext?: <Result>(operation: () => Promise<Result>) => Promise<Result>;
+    };
+    if (typeof source.runWithRequestContext === "function") {
+      return source.runWithRequestContext(callback);
     }
+
+    return callback();
   }
 
   private toTeamRecord = (team: Team): CanonicalTeam => ({

@@ -135,18 +135,31 @@ run_query() {
     return 1
   fi
 
-  if ! echo "${response}" | grep -q '"state"'; then
-    echo "FAIL: query response missing state field: ${response}" >&2
+  if echo "${response}" | grep -q '"needsClarification":true'; then
+    echo "FAIL: query endpoint returned clarification instead of answer: ${response}" >&2
     return 1
   fi
-  echo "PASS: query endpoint returns structured response"
+
+  if ! echo "${response}" | grep -q '"results"'; then
+    echo "FAIL: query response missing results field: ${response}" >&2
+    return 1
+  fi
+  echo "PASS: query endpoint returns current structured response"
 }
 
 run_teams() {
   parse_code "GET" "${BASE_URL}/api/teams"
   require "Teams endpoint" "${status}"
-  if ! echo "${response}" | grep -q 'teamId'; then
-    echo "FAIL: teams payload did not include teamId fields: ${response}" >&2
+  if ! echo "${response}" | grep -q '"teams"'; then
+    echo "FAIL: teams payload did not include teams array: ${response}" >&2
+    return 1
+  fi
+  if ! echo "${response}" | grep -q '"id"'; then
+    echo "FAIL: teams payload did not include id fields: ${response}" >&2
+    return 1
+  fi
+  if ! echo "${response}" | grep -q '"abbreviation"'; then
+    echo "FAIL: teams payload did not include abbreviation fields: ${response}" >&2
     return 1
   fi
   echo "PASS: teams endpoint returned mapped team data"

@@ -1,8 +1,17 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CachedDataSource } from "./cachedDataSource.ts";
+import { resetSqliteDatabaseForTests } from "../db/sqlite.ts";
 import type { IDataSource } from "../data/publicNflSource.ts";
+
+test.beforeEach(() => {
+  resetSqliteDatabaseForTests();
+  delete process.env.NFL_SQLITE_PATH;
+});
 
 function createCountingSource() {
   let getTeamsCalls = 0;
@@ -143,8 +152,12 @@ test("cached data source serves stale cache when the source request fails", asyn
   nowRef.value += 2_500;
   shouldFail = true;
 
-  const second = await cached.getPlayers({ search: "Josh Allen" });
-  const staleHint = cached.consumeDataStaleHint();
+  let second: Awaited<ReturnType<typeof cached.getPlayers>> = [];
+  let staleHint = false;
+  await cached.runWithRequestContext(async () => {
+    second = await cached.getPlayers({ search: "Josh Allen" });
+    staleHint = cached.consumeDataStaleHint();
+  });
 
   assert.equal(first.length, 1);
   assert.equal(second.length, 1);
@@ -180,12 +193,98 @@ test("consumeDataStaleHint resets after first read", async () => {
   await cached.getPlayers({ search: "Josh Allen" });
   nowRef.value += 2_500;
   shouldFail = true;
-  await cached.getPlayers({ search: "Josh Allen" });
-
-  const firstRead = cached.consumeDataStaleHint();
-  const secondRead = cached.consumeDataStaleHint();
+  let firstRead = false;
+  let secondRead = false;
+  await cached.runWithRequestContext(async () => {
+    await cached.getPlayers({ search: "Josh Allen" });
+    firstRead = cached.consumeDataStaleHint();
+    secondRead = cached.consumeDataStaleHint();
+  });
 
   assert.equal(firstRead, true);
   assert.equal(secondRead, false);
   assert.equal(getPlayersCalls, 2);
+});
+
+test("cached data source isolates stale fallback hints per request context", async () => {
+  let shouldFail = false;
+  const nowRef = { value: 12_000 };
+
+  const source = {
+    getPlayers: async () => {
+      if (shouldFail) {
+        throw new Error("upstream unavailable");
+      }
+      return [{ id: "17", firstName: "Josh", lastName: "Allen", team: "Bills", teamId: "1" }];
+    },
+    getTeams: async () => [],
+    getGames: async () => [],
+    getPlayerStats: async () => [],
+    getTeamStats: async () => [],
+  };
+
+  const cached = new CachedDataSource(source, {
+    enabled: true,
+    ttlSeconds: 1,
+    now: () => nowRef.value,
+  });
+
+  await cached.getPlayers({ search: "Josh Allen" });
+  nowRef.value += 2_500;
+  shouldFail = true;
+
+  let firstContextStale = false;
+  await cached.runWithRequestContext(async () => {
+    await cached.getPlayers({ search: "Josh Allen" });
+    firstContextStale = cached.consumeDataStaleHint();
+  });
+
+  let secondContextStale = true;
+  await cached.runWithRequestContext(async () => {
+    secondContextStale = cached.consumeDataStaleHint();
+  });
+
+  assert.equal(firstContextStale, true);
+  assert.equal(secondContextStale, false);
+});
+
+test("cached data source reuses sqlite-backed cache across instances", async (t) => {
+  const originalSqlitePath = process.env.NFL_SQLITE_PATH;
+  const dbPath = path.join(
+    os.tmpdir(),
+    `nfl-query-cache-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.sqlite`
+  );
+  process.env.NFL_SQLITE_PATH = dbPath;
+  resetSqliteDatabaseForTests();
+
+  t.after(() => {
+    resetSqliteDatabaseForTests();
+    if (originalSqlitePath === undefined) {
+      delete process.env.NFL_SQLITE_PATH;
+    } else {
+      process.env.NFL_SQLITE_PATH = originalSqlitePath;
+    }
+    fs.rmSync(dbPath, { force: true });
+    fs.rmSync(`${dbPath}-shm`, { force: true });
+    fs.rmSync(`${dbPath}-wal`, { force: true });
+  });
+
+  const counting = createCountingSource();
+  const nowRef = { value: 20_000 };
+
+  const firstCache = new CachedDataSource(counting.source, {
+    enabled: true,
+    ttlSeconds: 60,
+    now: () => nowRef.value,
+  });
+  await firstCache.getTeams();
+
+  const secondCache = new CachedDataSource(counting.source, {
+    enabled: true,
+    ttlSeconds: 60,
+    now: () => nowRef.value,
+  });
+  await secondCache.getTeams();
+
+  assert.equal(counting.getTeamsCalls(), 1);
 });

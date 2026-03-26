@@ -420,7 +420,7 @@ export class PublicNflSource implements IDataSource {
     }
   }
 
-  private recordSuccessfulRequest(now: number): void {
+  private recordOutboundRequest(now: number): void {
     this.trimRequestWindow(now);
     this.requestTimestampsMs.push(now);
   }
@@ -743,7 +743,15 @@ export class PublicNflSource implements IDataSource {
         let response: Response;
         try {
           this.ensureCircuitHealthy(route);
-          this.ensureSourceBudget(route);
+          try {
+            this.ensureSourceBudget(route);
+          } catch (error) {
+            if (error instanceof NflSourceError && error.code === "RATE_LIMIT" && lastError) {
+              throw lastError;
+            }
+            throw error;
+          }
+          this.recordOutboundRequest(this.nowProvider());
           const modeUrl = this.applyAuthModeToRequestUrl(url, apiKey);
           response = await this.safeRequest(modeUrl.toString(), requestId, route, apiKey, authMode);
         } catch (error) {
@@ -788,7 +796,6 @@ export class PublicNflSource implements IDataSource {
         }
 
         if (response.ok && response.status >= 200 && response.status < 300) {
-          this.recordSuccessfulRequest(this.nowProvider());
           this.noteCircuitSuccess();
           const latencyMs = Date.now() - startedAt;
           await logEvent({

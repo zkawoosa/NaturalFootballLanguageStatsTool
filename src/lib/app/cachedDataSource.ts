@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import type {
   Game,
   IDataSource,
@@ -88,6 +90,7 @@ export type CacheAwareDataSource = IDataSource & {
   getTeamsFresh: () => Promise<Team[]>;
   consumeDataStaleHint: () => boolean;
   probeStatsAccess: () => Promise<void>;
+  runWithRequestContext: <T>(callback: () => Promise<T>) => Promise<T>;
 };
 
 type CachedDataSourceOptions = {
@@ -99,7 +102,7 @@ type CachedDataSourceOptions = {
 export class CachedDataSource implements CacheAwareDataSource {
   private readonly source: IDataSource;
   private readonly cache: InMemoryRequestCache;
-  private hasStaleResult = false;
+  private readonly requestStateStorage = new AsyncLocalStorage<{ stale: boolean }>();
 
   constructor(source: IDataSource, options: CachedDataSourceOptions) {
     this.source = source;
@@ -110,9 +113,23 @@ export class CachedDataSource implements CacheAwareDataSource {
     return this.cache.getStats();
   }
 
+  async runWithRequestContext<T>(callback: () => Promise<T>): Promise<T> {
+    const existing = this.requestStateStorage.getStore();
+    if (existing) {
+      return callback();
+    }
+
+    return this.requestStateStorage.run({ stale: false }, callback);
+  }
+
   consumeDataStaleHint(): boolean {
-    const result = this.hasStaleResult;
-    this.hasStaleResult = false;
+    const state = this.requestStateStorage.getStore();
+    if (!state) {
+      return false;
+    }
+
+    const result = state.stale;
+    state.stale = false;
     return result;
   }
 
@@ -122,7 +139,10 @@ export class CachedDataSource implements CacheAwareDataSource {
     });
 
     if (stale) {
-      this.hasStaleResult = true;
+      const state = this.requestStateStorage.getStore();
+      if (state) {
+        state.stale = true;
+      }
     }
 
     return value;

@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server.js";
 
 import type { QueryRequestBody, QueryResponse } from "../../../lib/contracts/api.ts";
+import { appendQueryHistory } from "../../../lib/db/queryHistory.ts";
 import { NflSourceError, type NflSourceErrorCode } from "../../../lib/data/publicNflSource.ts";
 import type { ICanonicalStatsService } from "../../../lib/data/statsRepository.ts";
 import type { CanonicalPlayerStat, CanonicalTeamStat } from "../../../lib/schema/canonical.ts";
 import { parseNflQuery, type ParsedQuery } from "../../../lib/parser/nlpParser.ts";
 import { getQueryStatsService } from "./queryStatsServiceFactory.ts";
 
-type QueryValidationErrorCode = "INVALID_JSON" | "INVALID_BODY" | "INVALID_QUERY";
+type QueryValidationErrorCode =
+  | "INVALID_JSON"
+  | "INVALID_BODY"
+  | "INVALID_QUERY"
+  | "INVALID_CONTEXT";
 
 type QueryValidationError = {
   error: string;
@@ -49,9 +54,13 @@ export async function POST(request: Request) {
     return NextResponse.json(body, { status: 400 });
   }
 
-  const parsedQuery = applyQueryContext(parseNflQuery(body.query.trim()), body.context);
+  const query = body.query.trim();
+  const parsedQuery = applyQueryContext(parseNflQuery(query), body.context);
   const service = getQueryStatsService();
-  const response = await buildQueryResponse(parsedQuery, service);
+  const response = await withServiceRequestContext(service, () =>
+    buildQueryResponse(parsedQuery, service)
+  );
+  persistQueryHistory(query, response);
   return NextResponse.json(response, { status: 200 });
 }
 
@@ -87,11 +96,140 @@ async function parseRequestBody(
     query: body.query,
   };
 
-  if (body.context && typeof body.context === "object") {
-    requestBody.context = body.context as QueryRequestBody["context"];
+  const normalizedContext = normalizeQueryContext(body.context);
+  if (normalizedContext && "error" in normalizedContext) {
+    return normalizedContext;
+  }
+
+  if (normalizedContext) {
+    requestBody.context = normalizedContext;
   }
 
   return requestBody;
+}
+
+function normalizeQueryContext(
+  rawContext: unknown
+): QueryRequestBody["context"] | QueryValidationError | undefined {
+  if (rawContext === undefined) {
+    return undefined;
+  }
+
+  if (!rawContext || typeof rawContext !== "object" || Array.isArray(rawContext)) {
+    return {
+      error: "Field 'context' must be a JSON object when provided.",
+      code: "INVALID_CONTEXT",
+    };
+  }
+
+  const raw = rawContext as Record<string, unknown>;
+  const context: NonNullable<QueryRequestBody["context"]> = {};
+
+  if ("season" in raw) {
+    if (!isPositiveInteger(raw.season)) {
+      return {
+        error: "Field 'context.season' must be a positive integer when provided.",
+        code: "INVALID_CONTEXT",
+      };
+    }
+    context.season = raw.season;
+  }
+
+  if ("week" in raw) {
+    if (!isPositiveInteger(raw.week)) {
+      return {
+        error: "Field 'context.week' must be a positive integer when provided.",
+        code: "INVALID_CONTEXT",
+      };
+    }
+    context.week = raw.week;
+  }
+
+  const team = normalizeContextString(raw.team);
+  if (raw.team !== undefined && team === null) {
+    return {
+      error: "Field 'context.team' must be a non-empty string when provided.",
+      code: "INVALID_CONTEXT",
+    };
+  }
+  if (team) {
+    context.team = team;
+  }
+
+  const player = normalizeContextString(raw.player);
+  if (raw.player !== undefined && player === null) {
+    return {
+      error: "Field 'context.player' must be a non-empty string when provided.",
+      code: "INVALID_CONTEXT",
+    };
+  }
+  if (player) {
+    context.player = player;
+  }
+
+  const stat = normalizeContextString(raw.stat);
+  if (raw.stat !== undefined && stat === null) {
+    return {
+      error: "Field 'context.stat' must be a non-empty string when provided.",
+      code: "INVALID_CONTEXT",
+    };
+  }
+  if (stat) {
+    context.stat = stat;
+  }
+
+  return Object.keys(context).length > 0 ? context : undefined;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function normalizeContextString(value: unknown): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function withServiceRequestContext<T>(
+  service: ICanonicalStatsService,
+  operation: () => Promise<T>
+): Promise<T> {
+  const typedService = service as {
+    runWithRequestContext?: <Result>(callback: () => Promise<Result>) => Promise<Result>;
+  };
+
+  if (typeof typedService.runWithRequestContext === "function") {
+    return typedService.runWithRequestContext(operation);
+  }
+
+  return operation();
+}
+
+function persistQueryHistory(query: string, response: QueryResponse): void {
+  try {
+    appendQueryHistory({
+      query,
+      intent: response.intent,
+      summary: response.summary,
+      needsClarification: response.needsClarification,
+      sourceError:
+        "sourceError" in response &&
+        typeof response.sourceError === "boolean" &&
+        response.sourceError === true,
+      dataStale: response.dataStale ?? false,
+    });
+  } catch (error) {
+    console.warn("Unable to persist query history.");
+    console.warn(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function buildQueryResponse(
