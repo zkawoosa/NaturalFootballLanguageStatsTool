@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# Usage:
+#   scripts/check-live-deploy.sh https://your-app.onrender.com
+# or:
+#   DEPLOY_URL=https://your-app.onrender.com scripts/check-live-deploy.sh
+
 BASE_URL="${1:-${DEPLOY_URL:-https://naturalfootballlanguagestats.onrender.com}}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-20}"
 RETRY_COUNT="${RETRY_COUNT:-3}"
@@ -65,22 +70,76 @@ parse_code() {
   return 0
 }
 
+require_node() {
+  if command -v node >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "FAIL: smoke checks require node to validate JSON responses" >&2
+  exit 1
+}
+
+json_eval() {
+  local expr="$1"
+
+  require_node
+
+  RESPONSE_BODY="${response}" JSON_EXPR="${expr}" node --input-type=module <<'EOF'
+const body = process.env.RESPONSE_BODY ?? "";
+const expr = process.env.JSON_EXPR ?? "";
+
+if (!body.trim()) {
+  process.exit(1);
+}
+
+let json;
+try {
+  json = JSON.parse(body);
+} catch {
+  process.exit(1);
+}
+
+let result;
+try {
+  result = Function("json", `return (${expr});`)(json);
+} catch {
+  process.exit(1);
+}
+
+if (!result) {
+  process.exit(1);
+}
+EOF
+}
+
 extract_json_field() {
   local key="$1"
-  local value=""
 
-  if command -v node >/dev/null 2>&1; then
-    value="$(node --input-type=module -e 'import fs from "node:fs"; const data = fs.readFileSync(0, "utf8").trim(); if (!data) process.exit(0); try { const json = JSON.parse(data); const value = json[process.argv[1]]; console.log(value ?? ""); } catch { process.exit(0); }' "${key}" <<EOF
-${response}
+  require_node
+
+  RESPONSE_BODY="${response}" JSON_KEY="${key}" node --input-type=module <<'EOF'
+const body = process.env.RESPONSE_BODY ?? "";
+const key = process.env.JSON_KEY ?? "";
+
+if (!body.trim()) {
+  process.exit(0);
+}
+
+try {
+  const json = JSON.parse(body);
+  const value = json[key];
+  if (value === undefined || value === null) {
+    process.exit(0);
+  }
+  if (typeof value === "object") {
+    console.log(JSON.stringify(value));
+  } else {
+    console.log(String(value));
+  }
+} catch {
+  process.exit(0);
+}
 EOF
-)"
-  fi
-
-  if [[ -z "${value}" ]]; then
-    value="$(echo "${response}" | sed -n "s/.*\\\"${key}\\\":\\\"\\([^\\\"]*\\)\\\".*/\\1/p")"
-  fi
-
-  printf '%s' "${value}"
 }
 
 run_root() {
@@ -97,30 +156,34 @@ run_status() {
   parse_code "GET" "${BASE_URL}/api/status"
   require "Status endpoint" "${status}"
 
-  if ! echo "${response}" | grep -q '"healthy"'; then
-    echo "FAIL: status payload did not include health field: ${response}" >&2
+  if ! json_eval 'typeof json.healthy === "boolean"'; then
+    echo "FAIL: status payload did not include a boolean healthy field: ${response}" >&2
     return 1
   fi
-  if ! echo "${response}" | grep -q '"healthy":true'; then
+  if ! json_eval 'json.healthy === true'; then
     echo "FAIL: status payload reports unhealthy source: ${response}" >&2
     return 1
   fi
-  if echo "${response}" | grep -qi '"warnings"'; then
+  if ! json_eval 'typeof json.checkedAt === "string" && json.checkedAt.length > 0'; then
+    echo "FAIL: status payload did not include checkedAt timestamp: ${response}" >&2
+    return 1
+  fi
+  if json_eval 'Array.isArray(json.warnings) && json.warnings.length > 0'; then
     echo "WARN: status payload includes warnings: ${response}" >&2
-    if echo "${response}" | grep -qi '401'; then
+    if json_eval 'Array.isArray(json.warnings) && json.warnings.some((warning) => String(warning).includes("401"))'; then
       echo "FAIL: status payload includes authorization warning from source probe." >&2
       return 1
     fi
   fi
-  echo "PASS: status payload includes health field"
+  echo "PASS: status payload reports healthy query-path readiness"
 }
 
 run_query() {
-  local body='{"query":"who had most passing yards this season"}'
+  local body='{"query":"who had most passing yards in the 2025 season"}'
   parse_code "POST" "${BASE_URL}/api/query" "${body}"
   require "Query endpoint" "${status}"
 
-  if echo "${response}" | grep -q '"sourceError":true'; then
+  if json_eval 'json.sourceError === true'; then
     local error_code
     local summary
     local source_error_message
@@ -135,39 +198,71 @@ run_query() {
     return 1
   fi
 
-  if echo "${response}" | grep -q '"needsClarification":true'; then
+  if json_eval 'json.needsClarification === true'; then
     echo "FAIL: query endpoint returned clarification instead of answer: ${response}" >&2
     return 1
   fi
 
-  if ! echo "${response}" | grep -q '"results"'; then
-    echo "FAIL: query response missing results field: ${response}" >&2
+  if ! json_eval 'Array.isArray(json.results)'; then
+    echo "FAIL: query response missing results array: ${response}" >&2
     return 1
   fi
-  echo "PASS: query endpoint returns current structured response"
+  if ! json_eval 'json.results.length > 0'; then
+    echo "FAIL: query response returned an empty results array: ${response}" >&2
+    return 1
+  fi
+  if ! json_eval '!("state" in json)'; then
+    echo "FAIL: query response still includes legacy state field: ${response}" >&2
+    return 1
+  fi
+  echo "PASS: query endpoint returns the current structured response contract"
 }
 
 run_teams() {
   parse_code "GET" "${BASE_URL}/api/teams"
   require "Teams endpoint" "${status}"
-  if ! echo "${response}" | grep -q '"teams"'; then
+  if ! json_eval 'Array.isArray(json.teams)'; then
     echo "FAIL: teams payload did not include teams array: ${response}" >&2
     return 1
   fi
-  if ! echo "${response}" | grep -q '"id"'; then
+  if ! json_eval 'json.teams.length > 0'; then
+    echo "FAIL: teams payload returned an empty teams array: ${response}" >&2
+    return 1
+  fi
+  if ! json_eval 'json.teams.every((team) => typeof team.id === "number" || typeof team.id === "string")'; then
     echo "FAIL: teams payload did not include id fields: ${response}" >&2
     return 1
   fi
-  if ! echo "${response}" | grep -q '"abbreviation"'; then
+  if ! json_eval 'json.teams.every((team) => typeof team.abbreviation === "string" && team.abbreviation.length > 0)'; then
     echo "FAIL: teams payload did not include abbreviation fields: ${response}" >&2
     return 1
   fi
+  if ! json_eval 'json.teams.every((team) => !("teamId" in team))'; then
+    echo "FAIL: teams payload still includes legacy teamId fields: ${response}" >&2
+    return 1
+  fi
   echo "PASS: teams endpoint returned mapped team data"
+}
+
+run_invalid_context() {
+  local body='{"query":"and this week?","context":{"team":123,"season":"2025"}}'
+  parse_code "POST" "${BASE_URL}/api/query" "${body}"
+
+  if [[ "${status}" != "400" ]]; then
+    echo "FAIL: malformed follow-up context should return HTTP 400, got ${status}: ${response}" >&2
+    return 1
+  fi
+  if ! json_eval 'json.errorCode === "INVALID_CONTEXT"'; then
+    echo "FAIL: malformed context response missing INVALID_CONTEXT code: ${response}" >&2
+    return 1
+  fi
+  echo "PASS: malformed follow-up context is rejected with HTTP 400"
 }
 
 run_root
 run_status
 run_query
 run_teams
+run_invalid_context
 
 echo "All deploy smoke checks passed"
