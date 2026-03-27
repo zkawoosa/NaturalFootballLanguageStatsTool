@@ -119,7 +119,7 @@ export function createLogEvent(
     eventType: "source",
     route,
     method,
-    source: "balldontlie",
+    source: "nflverse",
     ok: undefined,
     status: undefined,
     latencyMs: undefined,

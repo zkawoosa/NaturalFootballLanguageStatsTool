@@ -21,7 +21,7 @@ function toErrorMessage(value: unknown): string {
 function safeStatusResponse(value: unknown, fallbackCheckedAt: string): StatusResponse {
   if (typeof value !== "object" || value === null) {
     return {
-      source: "balldontlie",
+      source: "nflverse",
       healthy: false,
       latencyMs: null,
       checkedAt: fallbackCheckedAt,
@@ -39,7 +39,7 @@ function safeStatusResponse(value: unknown, fallbackCheckedAt: string): StatusRe
   };
 
   return {
-    source: payload.source === "balldontlie" ? "balldontlie" : "balldontlie",
+    source: payload.source === "nflverse" ? "nflverse" : "nflverse",
     healthy: typeof payload.healthy === "boolean" ? payload.healthy : false,
     latencyMs: typeof payload.latencyMs === "number" ? payload.latencyMs : null,
     checkedAt: typeof payload.checkedAt === "string" ? payload.checkedAt : fallbackCheckedAt,
@@ -49,7 +49,7 @@ function safeStatusResponse(value: unknown, fallbackCheckedAt: string): StatusRe
         : undefined,
     ...(typeof payload.error === "string" ? { error: payload.error } : {}),
     ...(Array.isArray(payload.warnings)
-      ? { warnings: payload.warnings.filter((value) => typeof value === "string") }
+      ? { warnings: payload.warnings.filter((item) => typeof item === "string") }
       : {}),
   };
 }
@@ -63,7 +63,7 @@ export async function GET() {
     return NextResponse.json(response, { status: response.healthy ? 200 : 503 });
   } catch (error) {
     const response: StatusResponse = {
-      source: "balldontlie",
+      source: "nflverse",
       healthy: false,
       latencyMs: null,
       checkedAt: requestStartedAt,

@@ -14,12 +14,14 @@
     "test:quiet": "NFL_QUERY_TEST_QUIET_LOGS=1 node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:watch": "node --test --watch --experimental-strip-types \"src/**/*.test.ts\"",
     "dev": "next dev",
+    "build:snapshot": "node --experimental-strip-types scripts/build-nflverse-snapshot.mjs",
+    "verify:snapshot": "node scripts/verify-nflverse-snapshot.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.md\"",
-    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.md\""
+    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/build-nflverse-snapshot.mjs\" \"scripts/verify-nflverse-snapshot.mjs\" \"*.md\"",
+    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/build-nflverse-snapshot.mjs\" \"scripts/verify-nflverse-snapshot.mjs\" \"*.md\""
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

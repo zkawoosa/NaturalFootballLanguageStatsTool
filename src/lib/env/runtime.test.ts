@@ -3,65 +3,36 @@ import assert from "node:assert/strict";
 
 import { loadRuntimeEnv } from "./runtime.ts";
 
-test("loadRuntimeEnv normalizes legacy balldontlie base URLs", () => {
-  const original = process.env.BL_API_BASE_URL;
+test("loadRuntimeEnv defaults to nflverse even when a legacy source env is present", () => {
+  const original = process.env.NFL_SOURCE;
 
   try {
-    process.env.BL_API_BASE_URL = "https://api.balldontlie.io/v1/";
-    const legacy = loadRuntimeEnv();
-    assert.equal(legacy.balldontlieBaseUrl, "https://api.balldontlie.io/nfl/v1");
-
-    process.env.BL_API_BASE_URL = "https://api.balldontlie.io/nfl/v1/";
-    const canonical = loadRuntimeEnv();
-    assert.equal(canonical.balldontlieBaseUrl, "https://api.balldontlie.io/nfl/v1");
+    process.env.NFL_SOURCE = "balldontlie";
+    const config = loadRuntimeEnv();
+    assert.equal(config.source, "nflverse");
   } finally {
     if (original === undefined) {
-      delete process.env.BL_API_BASE_URL;
+      delete process.env.NFL_SOURCE;
     } else {
-      process.env.BL_API_BASE_URL = original;
+      process.env.NFL_SOURCE = original;
     }
   }
 });
 
-test("loadRuntimeEnv deduplicates and orders balldontlie API keys", () => {
+test("loadRuntimeEnv reads nflverse season and cache settings", () => {
   const original = { ...process.env };
 
   try {
-    process.env.BL_API_KEY = "primary";
-    process.env.API_KEY = "fallback";
-    process.env.BALLDONTLIE_API_KEY = "primary";
+    process.env.NFLVERSE_DEFAULT_SEASON = "2025";
+    process.env.NFL_CACHE_ENABLED = "0";
+    process.env.NFL_CACHE_TTL_SECONDS = "120";
+    process.env.NFL_LOG_TO_FILE = "1";
 
     const config = loadRuntimeEnv();
-    assert.deepEqual(config.balldontlieApiKeys, ["primary", "fallback"]);
-    assert.equal(config.balldontlieApiKey, "primary");
-  } finally {
-    for (const key of Object.keys(process.env)) {
-      if (key in original) {
-        if (original[key] === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = original[key];
-        }
-      }
-    }
-  }
-});
-
-test("loadRuntimeEnv splits and normalizes multi-key env values", () => {
-  const original = { ...process.env };
-
-  try {
-    process.env.BL_API_KEY = "  Bearer primary123  , secondary456 \nBearer tertiary789 ;  ";
-    process.env.API_KEY = "  Bearer primary123";
-
-    const config = loadRuntimeEnv();
-    assert.deepEqual(config.balldontlieApiKeys, [
-      "primary123",
-      "secondary456",
-      "tertiary789",
-      "primary",
-    ]);
-    assert.equal(config.balldontlieApiKey, "primary123");
+    assert.equal(config.nflverseDefaultSeason, 2025);
+    assert.equal(config.cacheEnabled, false);
+    assert.equal(config.cacheTtlSeconds, 120);
+    assert.equal(config.logToFile, true);
   } finally {
     for (const key of Object.keys(process.env)) {
       if (key in original) {

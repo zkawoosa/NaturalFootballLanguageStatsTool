@@ -9,7 +9,7 @@ test("logger utils: build a valid source log payload shape", () => {
   assert.equal(event.eventType, "source");
   assert.equal(event.route, "/teams");
   assert.equal(event.method, "GET");
-  assert.equal(event.source, "balldontlie");
+  assert.equal(event.source, "nflverse");
   assert.equal(event.retryCount, 0);
   assert.equal(event.rateLimitWaitMs, 0);
   assert.equal(typeof event.ok, "undefined");

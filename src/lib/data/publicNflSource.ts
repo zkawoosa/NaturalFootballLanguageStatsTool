@@ -1,5 +1,4 @@
-import { getBalldontlieApiKeys } from "../config.ts";
-import { createRequestId, logEvent } from "../logger.ts";
+import { getSqliteDatabase } from "../db/sqlite.ts";
 
 export type NflSourceErrorCode =
   | "UNAUTHORIZED"
@@ -159,1100 +158,863 @@ export interface IDataSource {
   probeStatsAccess?: () => Promise<void>;
 }
 
-const DEFAULT_BASE_URLS = ["https://api.balldontlie.io/nfl/v1", "https://api.balldontlie.io/v1"];
-
-const DEFAULT_TIMEOUT_MS = 12_000;
-const DEFAULT_REQUEST_WINDOW_MS = 60_000;
-const DEFAULT_REQUEST_WINDOW_MAX = 5;
-const DEFAULT_PAGE_LIMIT = 200;
-const RATE_LIMIT_MIN_BACKOFF_MS = 12_000;
-const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
-const DEFAULT_CIRCUIT_BREAKER_WINDOW_MS = 60_000;
-const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 60_000;
-const STRICT_RETRIES_BY_STATUS = {
-  429: 2,
-} as const;
-const RETRY_POLICY_DESCRIPTION = "strict_429_only";
-type BalldontlieAuthMode = "authorizationOnly" | "xApiKeyOnly";
-
-export const STRICT_429_RETRY_POLICY: NflRetryPolicy = {
-  id: RETRY_POLICY_DESCRIPTION,
-  maxRetriesByStatus: STRICT_RETRIES_BY_STATUS,
-  backoffMs: {
-    base: RATE_LIMIT_MIN_BACKOFF_MS,
-    min: 1000,
-    max: 60_000,
-  },
-  retryOnStatus: [429],
+type SnapshotMetadata = {
+  source: string | null;
+  season: number | null;
+  builtAt: string | null;
 };
 
-export class PublicNflSource implements IDataSource {
-  private baseUrl: string;
-  private timeoutMs: number;
-  private requestWindowMs: number;
-  private requestWindowMax: number;
-  private requestTimestampsMs: number[];
-  private circuitFailureTimestampsMs: number[];
-  private circuitOpenUntilMs: number;
-  private circuitBreakerFailureThreshold: number;
-  private circuitBreakerWindowMs: number;
-  private circuitBreakerCooldownMs: number;
-  private nowProvider: () => number;
-  private balldontlieApiKeysProvider: () => string[];
+type SqliteDatabase = ReturnType<typeof getSqliteDatabase>;
 
-  constructor(opts?: {
-    baseUrl?: string;
-    timeoutMs?: number;
-    requestWindowMs?: number;
-    requestWindowMax?: number;
-    circuitBreakerFailureThreshold?: number;
-    circuitBreakerWindowMs?: number;
-    circuitBreakerCooldownMs?: number;
-    nowProvider?: () => number;
-    balldontlieApiKeys?: string[];
-  }) {
-    this.baseUrl = opts?.baseUrl?.replace(/\/$/, "") || DEFAULT_BASE_URLS[0];
-    this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.requestWindowMs = opts?.requestWindowMs ?? DEFAULT_REQUEST_WINDOW_MS;
-    this.requestWindowMax = opts?.requestWindowMax ?? DEFAULT_REQUEST_WINDOW_MAX;
-    this.requestTimestampsMs = [];
-    this.circuitFailureTimestampsMs = [];
-    this.circuitOpenUntilMs = 0;
-    this.circuitBreakerFailureThreshold =
-      opts?.circuitBreakerFailureThreshold ?? DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD;
-    this.circuitBreakerWindowMs = opts?.circuitBreakerWindowMs ?? DEFAULT_CIRCUIT_BREAKER_WINDOW_MS;
-    this.circuitBreakerCooldownMs =
-      opts?.circuitBreakerCooldownMs ?? DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS;
-    this.nowProvider = opts?.nowProvider ?? (() => Date.now());
-    this.balldontlieApiKeysProvider = () =>
-      (opts?.balldontlieApiKeys?.length ? opts.balldontlieApiKeys : undefined) ??
-      getBalldontlieApiKeys();
+const NOOP_RETRY_POLICY: NflRetryPolicy = {
+  id: "snapshot_noop",
+  maxRetriesByStatus: {},
+  backoffMs: {
+    base: 0,
+    min: 0,
+    max: 0,
+  },
+  retryOnStatus: [],
+};
+
+export const STRICT_429_RETRY_POLICY = NOOP_RETRY_POLICY;
+
+export const NFL_TEAMS: readonly Team[] = [
+  {
+    id: "ARI",
+    abbreviation: "ARI",
+    city: "Arizona",
+    name: "Cardinals",
+    conference: "NFC",
+    division: "West",
+  },
+  {
+    id: "ATL",
+    abbreviation: "ATL",
+    city: "Atlanta",
+    name: "Falcons",
+    conference: "NFC",
+    division: "South",
+  },
+  {
+    id: "BAL",
+    abbreviation: "BAL",
+    city: "Baltimore",
+    name: "Ravens",
+    conference: "AFC",
+    division: "North",
+  },
+  {
+    id: "BUF",
+    abbreviation: "BUF",
+    city: "Buffalo",
+    name: "Bills",
+    conference: "AFC",
+    division: "East",
+  },
+  {
+    id: "CAR",
+    abbreviation: "CAR",
+    city: "Carolina",
+    name: "Panthers",
+    conference: "NFC",
+    division: "South",
+  },
+  {
+    id: "CHI",
+    abbreviation: "CHI",
+    city: "Chicago",
+    name: "Bears",
+    conference: "NFC",
+    division: "North",
+  },
+  {
+    id: "CIN",
+    abbreviation: "CIN",
+    city: "Cincinnati",
+    name: "Bengals",
+    conference: "AFC",
+    division: "North",
+  },
+  {
+    id: "CLE",
+    abbreviation: "CLE",
+    city: "Cleveland",
+    name: "Browns",
+    conference: "AFC",
+    division: "North",
+  },
+  {
+    id: "DAL",
+    abbreviation: "DAL",
+    city: "Dallas",
+    name: "Cowboys",
+    conference: "NFC",
+    division: "East",
+  },
+  {
+    id: "DEN",
+    abbreviation: "DEN",
+    city: "Denver",
+    name: "Broncos",
+    conference: "AFC",
+    division: "West",
+  },
+  {
+    id: "DET",
+    abbreviation: "DET",
+    city: "Detroit",
+    name: "Lions",
+    conference: "NFC",
+    division: "North",
+  },
+  {
+    id: "GB",
+    abbreviation: "GB",
+    city: "Green Bay",
+    name: "Packers",
+    conference: "NFC",
+    division: "North",
+  },
+  {
+    id: "HOU",
+    abbreviation: "HOU",
+    city: "Houston",
+    name: "Texans",
+    conference: "AFC",
+    division: "South",
+  },
+  {
+    id: "IND",
+    abbreviation: "IND",
+    city: "Indianapolis",
+    name: "Colts",
+    conference: "AFC",
+    division: "South",
+  },
+  {
+    id: "JAX",
+    abbreviation: "JAX",
+    city: "Jacksonville",
+    name: "Jaguars",
+    conference: "AFC",
+    division: "South",
+  },
+  {
+    id: "KC",
+    abbreviation: "KC",
+    city: "Kansas City",
+    name: "Chiefs",
+    conference: "AFC",
+    division: "West",
+  },
+  {
+    id: "LV",
+    abbreviation: "LV",
+    city: "Las Vegas",
+    name: "Raiders",
+    conference: "AFC",
+    division: "West",
+  },
+  {
+    id: "LAC",
+    abbreviation: "LAC",
+    city: "Los Angeles",
+    name: "Chargers",
+    conference: "AFC",
+    division: "West",
+  },
+  {
+    id: "LAR",
+    abbreviation: "LAR",
+    city: "Los Angeles",
+    name: "Rams",
+    conference: "NFC",
+    division: "West",
+  },
+  {
+    id: "MIA",
+    abbreviation: "MIA",
+    city: "Miami",
+    name: "Dolphins",
+    conference: "AFC",
+    division: "East",
+  },
+  {
+    id: "MIN",
+    abbreviation: "MIN",
+    city: "Minnesota",
+    name: "Vikings",
+    conference: "NFC",
+    division: "North",
+  },
+  {
+    id: "NE",
+    abbreviation: "NE",
+    city: "New England",
+    name: "Patriots",
+    conference: "AFC",
+    division: "East",
+  },
+  {
+    id: "NO",
+    abbreviation: "NO",
+    city: "New Orleans",
+    name: "Saints",
+    conference: "NFC",
+    division: "South",
+  },
+  {
+    id: "NYG",
+    abbreviation: "NYG",
+    city: "New York",
+    name: "Giants",
+    conference: "NFC",
+    division: "East",
+  },
+  {
+    id: "NYJ",
+    abbreviation: "NYJ",
+    city: "New York",
+    name: "Jets",
+    conference: "AFC",
+    division: "East",
+  },
+  {
+    id: "PHI",
+    abbreviation: "PHI",
+    city: "Philadelphia",
+    name: "Eagles",
+    conference: "NFC",
+    division: "East",
+  },
+  {
+    id: "PIT",
+    abbreviation: "PIT",
+    city: "Pittsburgh",
+    name: "Steelers",
+    conference: "AFC",
+    division: "North",
+  },
+  {
+    id: "SEA",
+    abbreviation: "SEA",
+    city: "Seattle",
+    name: "Seahawks",
+    conference: "NFC",
+    division: "West",
+  },
+  {
+    id: "SF",
+    abbreviation: "SF",
+    city: "San Francisco",
+    name: "49ers",
+    conference: "NFC",
+    division: "West",
+  },
+  {
+    id: "TB",
+    abbreviation: "TB",
+    city: "Tampa Bay",
+    name: "Buccaneers",
+    conference: "NFC",
+    division: "South",
+  },
+  {
+    id: "TEN",
+    abbreviation: "TEN",
+    city: "Tennessee",
+    name: "Titans",
+    conference: "AFC",
+    division: "South",
+  },
+  {
+    id: "WSH",
+    abbreviation: "WSH",
+    city: "Washington",
+    name: "Commanders",
+    conference: "NFC",
+    division: "East",
+  },
+] as const;
+
+const TEAM_BY_ID = new Map(NFL_TEAMS.map((team) => [team.id, team]));
+const TEAM_LOOKUP = new Map<string, Team>();
+for (const team of NFL_TEAMS) {
+  const fullName = `${team.city} ${team.name}`.trim();
+  for (const key of [team.id, team.abbreviation, team.name, team.city ?? "", fullName]) {
+    const normalized = key.trim().toLowerCase();
+    if (normalized.length > 0) {
+      TEAM_LOOKUP.set(normalized, team);
+    }
+  }
+}
+
+export function getDefaultNflSeason(now = new Date()): number {
+  const month = now.getUTCMonth() + 1;
+  return month < 7 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+}
+
+function teamDisplayName(teamId: string | null | undefined): string | null {
+  if (!teamId) return null;
+  const team = TEAM_BY_ID.get(teamId.toUpperCase());
+  if (!team) return teamId;
+  return `${team.city} ${team.name}`.trim();
+}
+
+function normalizeInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+}
+
+function normalizeFloat(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeSeasonType(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const upper = value.trim().toUpperCase();
+  if (upper === "REG" || upper === "POST" || upper === "PREGAME" || upper === "OFFSEASON") {
+    return upper;
+  }
+  if (upper === "POSTSEASON") return "POST";
+  if (upper === "REGULAR") return "REG";
+  return upper;
+}
+
+function resolveTeam(value?: string | null): Team | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+  return TEAM_LOOKUP.get(normalized) ?? null;
+}
+
+function normalizeLimit(perPage?: number, fallback = 200): number {
+  if (!Number.isFinite(perPage) || !perPage) return fallback;
+  return Math.min(Math.max(Math.trunc(perPage), 1), 500);
+}
+
+function normalizeOffset(page?: number, perPage = 200): number {
+  if (!Number.isFinite(page) || !page || page <= 1) return 0;
+  return (Math.trunc(page) - 1) * perPage;
+}
+
+export class PublicNflSource implements IDataSource {
+  private readonly databaseProvider: () => SqliteDatabase;
+  private readonly configuredDefaultSeason: number;
+
+  constructor(opts?: { defaultSeason?: number; db?: SqliteDatabase; nowProvider?: () => Date }) {
+    const nowProvider = opts?.nowProvider ?? (() => new Date());
+    this.databaseProvider = () => opts?.db ?? getSqliteDatabase();
+    this.configuredDefaultSeason = opts?.defaultSeason ?? getDefaultNflSeason(nowProvider());
+  }
+
+  getSnapshotMetadata(): SnapshotMetadata {
+    const db = this.databaseProvider();
+    const rows = db
+      .prepare(
+        `
+        SELECT key, value
+        FROM snapshot_metadata
+        WHERE key IN ('snapshot_source', 'snapshot_season', 'snapshot_built_at')
+      `
+      )
+      .all() as Array<{ key: string; value: string }>;
+
+    const byKey = new Map(rows.map((row) => [row.key, row.value]));
+    return {
+      source: byKey.get("snapshot_source") ?? null,
+      season: normalizeInteger(byKey.get("snapshot_season")),
+      builtAt: byKey.get("snapshot_built_at") ?? null,
+    };
+  }
+
+  async probeStatsAccess(): Promise<void> {
+    this.ensureSnapshotAvailable(this.resolveSeason());
   }
 
   async getTeams(): Promise<Team[]> {
-    const json = await this.fetchFromSource<{ data: RawTeam[] }>("teams");
-    if (!Array.isArray(json?.data)) {
-      throw new NflSourceError("INVALID_RESPONSE", "Teams response missing data array");
-    }
-
-    return json.data.map((team) => ({
-      id: String(team.id),
-      name: team.name,
-      abbreviation: team.abbreviation,
-      city: team.city ?? null,
-      conference: team.conference ?? null,
-      division: team.division?.name ?? null,
-    }));
+    return [...NFL_TEAMS];
   }
 
   async getPlayers(query: PlayerQuery = {}): Promise<Player[]> {
-    const params = this.toParams(query);
-    const json = await this.fetchFromSource<{ data: RawPlayer[] }>("players", params);
-    if (!Array.isArray(json?.data)) {
-      throw new NflSourceError("INVALID_RESPONSE", "Players response missing data array");
+    const season = this.resolveSeason(query.season);
+    this.ensureSnapshotAvailable(season);
+    const team = resolveTeam(query.team);
+    const limit = normalizeLimit(query.perPage, 200);
+    const offset = normalizeOffset(query.page, limit);
+    const search = query.search?.trim().toLowerCase();
+
+    const where = ["season = ?"];
+    const params: Array<string | number> = [season];
+
+    if (team) {
+      where.push("team_id = ?");
+      params.push(team.id);
     }
 
-    return json.data.map((player) => ({
-      id: String(player.id),
-      firstName: player.first_name,
-      lastName: player.last_name,
-      position: player.position ?? null,
-      teamId: player.team?.id ? String(player.team.id) : null,
-      team: player.team?.name ?? player.team?.full_name ?? null,
+    if (search) {
+      where.push(
+        "(lower(full_name) LIKE ? OR lower(first_name) LIKE ? OR lower(last_name) LIKE ?)"
+      );
+      const pattern = `%${search}%`;
+      params.push(pattern, pattern, pattern);
+    }
+
+    params.push(limit, offset);
+
+    const rows = this.databaseProvider()
+      .prepare(
+        `
+          SELECT player_id, first_name, last_name, position, team_id, team_name
+          FROM snapshot_players
+          WHERE ${where.join(" AND ")}
+          ORDER BY last_name ASC, first_name ASC
+          LIMIT ? OFFSET ?
+        `
+      )
+      .all(...params) as Array<{
+      player_id: string;
+      first_name: string;
+      last_name: string;
+      position: string | null;
+      team_id: string | null;
+      team_name: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.player_id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      position: row.position,
+      teamId: row.team_id,
+      team: row.team_name,
     }));
   }
 
   async getGames(query: NflWeekQuery = {}): Promise<Game[]> {
-    const params = this.toParams(query);
-    const json = await this.fetchFromSource<{ data: RawGame[] }>("games", params);
-    if (!Array.isArray(json?.data)) {
-      throw new NflSourceError("INVALID_RESPONSE", "Games response missing data array");
+    const season = this.resolveSeason(query.season);
+    this.ensureSnapshotAvailable(season);
+    const limit = normalizeLimit(query.perPage, 200);
+    const offset = normalizeOffset(query.page, limit);
+    const seasonType = normalizeSeasonType(query.seasonType);
+
+    const where = ["season = ?"];
+    const params: Array<string | number> = [season];
+
+    if (query.week) {
+      where.push("week = ?");
+      params.push(query.week);
     }
 
-    return json.data.map((game) => ({
-      id: String(game.id),
-      week: game.week ?? null,
-      season: game.season ?? null,
-      seasonType: game.season_type ?? null,
-      kickoffAt: game.start_time ?? null,
+    if (seasonType) {
+      where.push("season_type = ?");
+      params.push(seasonType);
+    }
+
+    params.push(limit, offset);
+
+    const rows = this.databaseProvider()
+      .prepare(
+        `
+          SELECT
+            game_id,
+            week,
+            season,
+            season_type,
+            kickoff_at,
+            status,
+            home_team_name,
+            away_team_name,
+            home_score,
+            away_score
+          FROM snapshot_games
+          WHERE ${where.join(" AND ")}
+          ORDER BY week ASC, kickoff_at ASC, game_id ASC
+          LIMIT ? OFFSET ?
+        `
+      )
+      .all(...params) as Array<{
+      game_id: string;
+      week: number | null;
+      season: number;
+      season_type: string | null;
+      kickoff_at: string | null;
+      status: string | null;
+      home_team_name: string | null;
+      away_team_name: string | null;
+      home_score: number | null;
+      away_score: number | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.game_id,
+      week: row.week,
+      season: row.season,
+      seasonType: row.season_type,
+      kickoffAt: row.kickoff_at,
       weekDay: null,
-      status: game.status ?? null,
-      homeTeam: game.home_team?.name ?? null,
-      awayTeam: game.away_team?.name ?? null,
-      homeScore: game.home_points ?? null,
-      awayScore: game.away_points ?? null,
+      status: row.status,
+      homeTeam: row.home_team_name,
+      awayTeam: row.away_team_name,
+      homeScore: row.home_score,
+      awayScore: row.away_score,
     }));
   }
 
   async getPlayerStats(query: PlayerStatsQuery = {}): Promise<PlayerStat[]> {
-    const playerIds = this.normalizePlayerIds(query.playerIds);
-    const baseQuery: NflWeekQuery = {
-      season: query.season,
-      week: query.week,
-      seasonType: query.seasonType,
-      perPage: query.perPage,
-      page: query.page,
-    };
-    const baseParams = this.toParams(baseQuery);
-    const playerSearch = query.playerSearch ?? query.search;
-    const team = query.team;
+    const season = this.resolveSeason(query.season);
+    this.ensureSnapshotAvailable(season);
 
-    if (!playerIds.length) {
-      const params = new URLSearchParams(baseParams);
-      if (playerSearch) params.set("search", playerSearch);
-      if (team) params.set("team", team);
-      const rawStats = await this.fetchAllStatsPages(params, query.perPage);
-      return rawStats.map((stat) => this.mapPlayerStat(stat));
+    const team = resolveTeam(query.team);
+    const search = (query.playerSearch ?? query.search)?.trim().toLowerCase();
+    const playerIds = (query.playerIds ?? []).map((value) => value.trim()).filter(Boolean);
+    const seasonType = normalizeSeasonType(query.seasonType);
+    const db = this.databaseProvider();
+
+    const where = ["season = ?"];
+    const params: Array<string | number> = [season];
+
+    if (query.week) {
+      where.push("week = ?");
+      params.push(query.week);
     }
 
-    const allStats: PlayerStat[] = [];
-    for (const playerId of playerIds) {
-      const params = new URLSearchParams(baseParams);
-      params.set("player_id", playerId);
-      if (team) params.set("team", team);
-      if (playerSearch) params.set("search", playerSearch);
+    if (seasonType) {
+      where.push("season_type = ?");
+      params.push(seasonType);
+    }
 
-      const json = await this.fetchFromSource<{ data: RawPlayerStat[] }>("stats", params);
-      if (!Array.isArray(json?.data)) {
-        throw new NflSourceError(
-          "INVALID_RESPONSE",
-          `Player stats response missing data array for player ${playerId}`
+    if (team) {
+      where.push("team_id = ?");
+      params.push(team.id);
+    }
+
+    if (search) {
+      where.push("lower(player_name) LIKE ?");
+      params.push(`%${search}%`);
+    }
+
+    if (playerIds.length > 0) {
+      where.push(`player_id IN (${playerIds.map(() => "?").join(", ")})`);
+      params.push(...playerIds);
+    }
+
+    const weeklyRows = db
+      .prepare(
+        `
+          SELECT
+            season,
+            week,
+            season_type,
+            game_id,
+            player_id,
+            player_name,
+            team_id,
+            team_name,
+            passing_attempts,
+            passing_completions,
+            passing_yards,
+            passing_td,
+            interceptions,
+            rushing_attempts,
+            rushing_yards,
+            rushing_td,
+            receptions,
+            targets,
+            receiving_yards,
+            receiving_td,
+            tackles,
+            sacks,
+            fumbles,
+            fumbles_lost,
+            two_point_conv
+          FROM snapshot_player_stats
+          WHERE ${where.join(" AND ")}
+          ORDER BY week ASC, player_name ASC
+        `
+      )
+      .all(...params) as Array<Record<string, unknown>>;
+
+    if (query.week) {
+      return weeklyRows.map((row) => this.toPlayerStatRecord(row, true));
+    }
+
+    const grouped = new Map<string, PlayerStat>();
+    for (const row of weeklyRows) {
+      const playerId = String(row.player_id);
+      const current =
+        grouped.get(playerId) ??
+        this.toPlayerStatRecord(
+          {
+            ...row,
+            week: null,
+            game_id: null,
+            passing_attempts: null,
+            passing_completions: null,
+            passing_yards: null,
+            passing_td: null,
+            interceptions: null,
+            rushing_attempts: null,
+            rushing_yards: null,
+            rushing_td: null,
+            receptions: null,
+            targets: null,
+            receiving_yards: null,
+            receiving_td: null,
+            tackles: null,
+            sacks: null,
+            fumbles: null,
+            fumbles_lost: null,
+            two_point_conv: null,
+          },
+          false
         );
-      }
 
-      const mappedStats = json.data.map((stat) => this.mapPlayerStat(stat));
-      allStats.push(...mappedStats);
+      current.seasonType = seasonType ?? null;
+      current.passingAttempts = addNullable(
+        current.passingAttempts,
+        normalizeInteger(row.passing_attempts)
+      );
+      current.passingCompletions = addNullable(
+        current.passingCompletions,
+        normalizeInteger(row.passing_completions)
+      );
+      current.passingYards = addNullable(current.passingYards, normalizeInteger(row.passing_yards));
+      current.passingTd = addNullable(current.passingTd, normalizeInteger(row.passing_td));
+      current.interceptions = addNullable(
+        current.interceptions,
+        normalizeInteger(row.interceptions)
+      );
+      current.rushingAttempts = addNullable(
+        current.rushingAttempts,
+        normalizeInteger(row.rushing_attempts)
+      );
+      current.rushingYards = addNullable(current.rushingYards, normalizeInteger(row.rushing_yards));
+      current.rushingTd = addNullable(current.rushingTd, normalizeInteger(row.rushing_td));
+      current.receptions = addNullable(current.receptions, normalizeInteger(row.receptions));
+      current.targets = addNullable(current.targets, normalizeInteger(row.targets));
+      current.receivingYards = addNullable(
+        current.receivingYards,
+        normalizeInteger(row.receiving_yards)
+      );
+      current.receivingTd = addNullable(current.receivingTd, normalizeInteger(row.receiving_td));
+      current.tackles = addNullable(current.tackles, normalizeFloat(row.tackles));
+      current.sacks = addNullable(current.sacks, normalizeFloat(row.sacks));
+      current.fumbles = addNullable(current.fumbles, normalizeInteger(row.fumbles));
+      current.fumblesLost = addNullable(current.fumblesLost, normalizeInteger(row.fumbles_lost));
+      current.twoPointConv = addNullable(
+        current.twoPointConv,
+        normalizeInteger(row.two_point_conv)
+      );
+      grouped.set(playerId, current);
     }
 
-    return allStats;
+    return [...grouped.values()].sort((a, b) => {
+      const passDelta = (b.passingYards ?? 0) - (a.passingYards ?? 0);
+      if (passDelta !== 0) return passDelta;
+      const rushDelta = (b.rushingYards ?? 0) - (a.rushingYards ?? 0);
+      if (rushDelta !== 0) return rushDelta;
+      return (a.playerName ?? "").localeCompare(b.playerName ?? "");
+    });
   }
 
   async getTeamStats(query: TeamStatsQuery = {}): Promise<TeamStat[]> {
-    const teamFilter = this.normalizeTeamFilter(query);
-    const baseQuery: NflWeekQuery = {
-      season: query.season,
-      week: query.week,
-      seasonType: query.seasonType,
-      perPage: query.perPage,
-      page: 1,
+    const season = this.resolveSeason(query.season);
+    this.ensureSnapshotAvailable(season);
+
+    const team = resolveTeam(query.teamId) ?? resolveTeam(query.team);
+    const seasonType = normalizeSeasonType(query.seasonType);
+    const db = this.databaseProvider();
+
+    const where = ["season = ?"];
+    const params: Array<string | number> = [season];
+
+    if (query.week) {
+      where.push("week = ?");
+      params.push(query.week);
+    }
+
+    if (seasonType) {
+      where.push("season_type = ?");
+      params.push(seasonType);
+    }
+
+    if (team) {
+      where.push("team_id = ?");
+      params.push(team.id);
+    }
+
+    const weeklyRows = db
+      .prepare(
+        `
+          SELECT
+            season,
+            week,
+            season_type,
+            game_id,
+            team_id,
+            team_name,
+            points_for,
+            points_against,
+            total_yards,
+            pass_yards,
+            rush_yards,
+            turnovers
+          FROM snapshot_team_stats
+          WHERE ${where.join(" AND ")}
+          ORDER BY week ASC, team_id ASC
+        `
+      )
+      .all(...params) as Array<Record<string, unknown>>;
+
+    if (query.week) {
+      return weeklyRows.map((row) => this.toTeamStatRecord(row, true));
+    }
+
+    const grouped = new Map<string, TeamStat>();
+    for (const row of weeklyRows) {
+      const teamId = String(row.team_id);
+      const current =
+        grouped.get(teamId) ??
+        this.toTeamStatRecord(
+          {
+            ...row,
+            week: null,
+            game_id: null,
+            points_for: null,
+            points_against: null,
+            total_yards: null,
+            pass_yards: null,
+            rush_yards: null,
+            turnovers: null,
+          },
+          false
+        );
+
+      current.seasonType = seasonType ?? null;
+      current.pointsFor = addNullable(current.pointsFor, normalizeInteger(row.points_for));
+      current.pointsAgainst = addNullable(
+        current.pointsAgainst,
+        normalizeInteger(row.points_against)
+      );
+      current.totalYards = addNullable(current.totalYards, normalizeInteger(row.total_yards));
+      current.passYards = addNullable(current.passYards, normalizeInteger(row.pass_yards));
+      current.rushYards = addNullable(current.rushYards, normalizeInteger(row.rush_yards));
+      current.turnovers = addNullable(current.turnovers, normalizeInteger(row.turnovers));
+      grouped.set(teamId, current);
+    }
+
+    return [...grouped.values()].sort((a, b) => (b.pointsFor ?? 0) - (a.pointsFor ?? 0));
+  }
+
+  private resolveSeason(explicitSeason?: number): number {
+    return explicitSeason ?? this.getSnapshotMetadata().season ?? this.configuredDefaultSeason;
+  }
+
+  private ensureSnapshotAvailable(season: number): void {
+    const db = this.databaseProvider();
+    const row = db
+      .prepare(
+        `
+        SELECT
+          (SELECT COUNT(*) FROM snapshot_games WHERE season = ?) AS gamesCount,
+          (SELECT COUNT(*) FROM snapshot_player_stats WHERE season = ?) AS playerStatsCount,
+          (SELECT COUNT(*) FROM snapshot_team_stats WHERE season = ?) AS teamStatsCount,
+          (SELECT value FROM snapshot_metadata WHERE key = 'snapshot_source') AS snapshotSource
+      `
+      )
+      .get(season, season, season) as {
+      gamesCount: number;
+      playerStatsCount: number;
+      teamStatsCount: number;
+      snapshotSource: string | null;
     };
-    const baseParams = this.toParams(baseQuery);
-    if (teamFilter) {
-      baseParams.set("team_id", teamFilter);
-      baseParams.set("team", teamFilter);
-    }
 
-    const teamStats = await this.fetchAllPlayerStatsAsTeamAggregate(
-      baseParams,
-      query.perPage ?? 100
-    );
-    if (!teamStats.length) {
-      return [];
-    }
+    const hasSnapshot =
+      row.snapshotSource === "nflverse" &&
+      row.gamesCount > 0 &&
+      row.playerStatsCount > 0 &&
+      row.teamStatsCount > 0;
 
-    const gameStats = await this.fetchTeamGamePoints({
-      season: query.season,
-      week: query.week,
-      seasonType: query.seasonType,
-      teamId: teamFilter ?? undefined,
-    });
-
-    return teamStats.map((teamStat) => {
-      const key = this.buildTeamStatKey(
-        teamStat.teamId,
-        teamStat.season,
-        teamStat.week,
-        teamStat.seasonType
-      );
-      const points = gameStats.get(key);
-      if (!points) return teamStat;
-      return {
-        ...teamStat,
-        pointsFor: points.pointsFor,
-        pointsAgainst: points.pointsAgainst,
-      };
-    });
-  }
-
-  async probeStatsAccess(): Promise<void> {
-    const params = new URLSearchParams();
-    params.set("per_page", "1");
-    await this.fetchFromSource("stats", params);
-  }
-
-  private toParams(query: Record<string, unknown>): URLSearchParams {
-    const params = new URLSearchParams();
-    const team = this.asString(query.team);
-    const search = this.asString(query.search);
-    const seasonType = this.asString(query.seasonType);
-    if (team) params.set("team", team);
-    if (search) params.set("search", search);
-    if (query.season) params.set("season", String(query.season));
-    if (query.week) params.set("week", String(query.week));
-    if (seasonType) params.set("season_type", seasonType);
-    if (query.perPage) params.set("per_page", String(query.perPage));
-    if (query.page) params.set("page", String(query.page));
-    return params;
-  }
-
-  private trimRequestWindow(now: number): void {
-    const cutoff = now - this.requestWindowMs;
-    this.requestTimestampsMs = this.requestTimestampsMs.filter((timestamp) => timestamp >= cutoff);
-    this.circuitFailureTimestampsMs = this.circuitFailureTimestampsMs.filter(
-      (timestamp) => timestamp >= now - this.circuitBreakerWindowMs
-    );
-  }
-
-  private remainingRequestsInWindow(now: number): number {
-    this.trimRequestWindow(now);
-    return Math.max(0, this.requestWindowMax - this.requestTimestampsMs.length);
-  }
-
-  private ensureSourceBudget(path: string): void {
-    const now = this.nowProvider();
-    const remaining = this.remainingRequestsInWindow(now);
-    if (remaining <= 0) {
+    if (!hasSnapshot) {
       throw new NflSourceError(
-        "RATE_LIMIT",
-        `Local request budget exceeded (${this.requestWindowMax} requests per ${this.requestWindowMs / 1000}s) before calling ${path}`,
-        429
+        "NO_DATA",
+        `nflverse snapshot is missing for season ${season}. Run \`npm run build:snapshot\`.`
       );
     }
   }
 
-  private recordOutboundRequest(now: number): void {
-    this.trimRequestWindow(now);
-    this.requestTimestampsMs.push(now);
-  }
-
-  private ensureCircuitHealthy(path: string): void {
-    const now = this.nowProvider();
-    if (this.circuitOpenUntilMs > 0 && now < this.circuitOpenUntilMs) {
-      const secondsLeft = Math.ceil((this.circuitOpenUntilMs - now) / 1000);
-      throw new NflSourceError(
-        "UPSTREAM_ERROR",
-        `Balldontlie request blocked by circuit breaker for ${path}. Retry in ${secondsLeft}s.`,
-        503
-      );
-    }
-
-    this.circuitOpenUntilMs = 0;
-  }
-
-  private noteCircuitFailure(error: NflSourceError): void {
-    if (error.code === "UNAUTHORIZED" || error.code === "NOT_FOUND") {
-      return;
-    }
-
-    if (error.code === "RATE_LIMIT") {
-      return;
-    }
-
-    const now = this.nowProvider();
-    const trimmedFailures = this.circuitFailureTimestampsMs.filter(
-      (timestamp) => timestamp >= now - this.circuitBreakerWindowMs
-    );
-    trimmedFailures.push(now);
-    this.circuitFailureTimestampsMs = trimmedFailures;
-
-    if (trimmedFailures.length >= this.circuitBreakerFailureThreshold) {
-      this.circuitOpenUntilMs = now + this.circuitBreakerCooldownMs;
-      this.circuitFailureTimestampsMs = [];
-    }
-  }
-
-  private noteCircuitSuccess(): void {
-    this.circuitFailureTimestampsMs = [];
-  }
-
-  private maybeNoteCircuitFailure(error: NflSourceError): void {
-    this.noteCircuitFailure(error);
-  }
-
-  private normalizePlayerIds(playerIds?: string[] | null): string[] {
-    if (!playerIds || !playerIds.length) return [];
-    const deduped = new Set(playerIds.map((id) => String(id).trim()).filter((id) => id.length > 0));
-    return [...deduped];
-  }
-
-  private asNumber(value: unknown): number | null {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") {
-      const parsed = Number.parseFloat(value);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
-  }
-
-  private asString(value: unknown): string | null {
-    if (typeof value === "string" && value.length > 0) return value;
-    return null;
-  }
-
-  private mapPlayerStat(stat: RawPlayerStat): PlayerStat {
-    const playerId = stat.player_id ? String(stat.player_id) : String(stat.player?.id ?? "unknown");
-    const season = this.asNumber(stat.season ?? stat.game?.season);
-    const week = this.asNumber(stat.week ?? stat.game?.week);
-    const seasonType = this.asString(stat.season_type ?? stat.game?.season_type) ?? "REG";
-    const playerName =
-      [this.asString(stat.player?.first_name), this.asString(stat.player?.last_name)]
-        .filter(Boolean)
-        .join(" ") || null;
+  private toPlayerStatRecord(row: Record<string, unknown>, includeWeek: boolean): PlayerStat {
+    const playerId = String(row.player_id);
+    const season = normalizeInteger(row.season);
+    const week = includeWeek ? normalizeInteger(row.week) : null;
+    const gameId = includeWeek ? String(row.game_id ?? "") || null : null;
+    const teamId = typeof row.team_id === "string" ? row.team_id : null;
 
     return {
-      id: String(
-        stat.id ?? `playerstat-${playerId}-${season ?? "na"}-${week ?? "na"}-${seasonType}`
-      ),
+      id: includeWeek
+        ? `${season ?? "unknown"}:${week ?? "unknown"}:${gameId ?? "game"}:${playerId}`
+        : `${season ?? "unknown"}:season:${playerId}`,
       playerId,
-      playerName,
-      teamId: this.asString(
-        stat.team?.id ? String(stat.team.id) : stat.team_id ? String(stat.team_id) : undefined
-      ),
-      teamName: this.asString(stat.team?.name ?? stat.team?.full_name),
-      gameId: this.asString(stat.game_id ? String(stat.game_id) : undefined),
+      playerName: typeof row.player_name === "string" ? row.player_name : null,
+      teamId,
+      teamName:
+        typeof row.team_name === "string" && row.team_name.length > 0
+          ? row.team_name
+          : teamDisplayName(teamId),
+      gameId,
       season,
       week,
-      seasonType,
-      passingAttempts: this.asNumber(stat.passing_attempts),
-      passingCompletions: this.asNumber(stat.passing_completions),
-      passingYards: this.asNumber(stat.passing_yards),
-      passingTd: this.asNumber(stat.passing_td),
-      interceptions: this.asNumber(stat.interceptions),
-      rushingAttempts: this.asNumber(stat.rushing_attempts),
-      rushingYards: this.asNumber(stat.rushing_yards),
-      rushingTd: this.asNumber(stat.rushing_td),
-      receptions: this.asNumber(stat.receptions),
-      targets: this.asNumber(stat.targets),
-      receivingYards: this.asNumber(stat.receiving_yards),
-      receivingTd: this.asNumber(stat.receiving_td),
-      tackles: this.asNumber(stat.defense_tackles),
-      sacks: this.asNumber(stat.defense_sacks),
-      fumbles: this.asNumber(stat.fumbles),
-      fumblesLost: this.asNumber(stat.fumbles_lost),
-      twoPointConv: this.asNumber(stat.two_point_conversions),
+      seasonType: typeof row.season_type === "string" ? row.season_type : null,
+      passingAttempts: normalizeInteger(row.passing_attempts),
+      passingCompletions: normalizeInteger(row.passing_completions),
+      passingYards: normalizeInteger(row.passing_yards),
+      passingTd: normalizeInteger(row.passing_td),
+      interceptions: normalizeInteger(row.interceptions),
+      rushingAttempts: normalizeInteger(row.rushing_attempts),
+      rushingYards: normalizeInteger(row.rushing_yards),
+      rushingTd: normalizeInteger(row.rushing_td),
+      receptions: normalizeInteger(row.receptions),
+      targets: normalizeInteger(row.targets),
+      receivingYards: normalizeInteger(row.receiving_yards),
+      receivingTd: normalizeInteger(row.receiving_td),
+      tackles: normalizeFloat(row.tackles),
+      sacks: normalizeFloat(row.sacks),
+      fumbles: normalizeInteger(row.fumbles),
+      fumblesLost: normalizeInteger(row.fumbles_lost),
+      twoPointConv: normalizeInteger(row.two_point_conv),
     };
   }
 
-  private normalizeTeamFilter(query: TeamStatsQuery): string | null {
-    if (query.teamId && String(query.teamId).trim().length > 0) {
-      return String(query.teamId).trim();
-    }
-    if (query.team && String(query.team).trim().length > 0) {
-      return String(query.team).trim();
-    }
-    return null;
-  }
-
-  private buildTeamStatKey(
-    teamId: string | null | undefined,
-    season: number | null | undefined,
-    week: number | null | undefined,
-    seasonType: string | null | undefined
-  ): string {
-    return `${teamId ?? "unknown"}-${season ?? "na"}-${week ?? "na"}-${seasonType ?? "na"}`;
-  }
-
-  private async fetchAllPlayerStatsAsTeamAggregate(
-    baseParams: URLSearchParams,
-    perPage: number
-  ): Promise<TeamStat[]> {
-    const allRawStats = await this.fetchAllStatsPages(baseParams, perPage);
-
-    const bucket = new Map<string, TeamStat>();
-    for (const raw of allRawStats) {
-      const stat = this.mapPlayerStat(raw);
-      const key = this.buildTeamStatKey(stat.teamId, stat.season, stat.week, stat.seasonType);
-      const existing = bucket.get(key);
-      const seed: TeamStat = existing ?? {
-        id: `teamstat-${key}`,
-        teamId: stat.teamId ?? "unknown",
-        season: stat.season ?? null,
-        week: stat.week ?? null,
-        seasonType: stat.seasonType ?? null,
-        pointsFor: null,
-        pointsAgainst: null,
-        totalYards: null,
-        passYards: null,
-        rushYards: null,
-        turnovers: null,
-      };
-
-      bucket.set(key, {
-        ...seed,
-        totalYards: this.sumOrNull(seed.totalYards, this.totalYardsFromPlayerStats(raw)),
-        passYards: this.sumOrNull(seed.passYards, this.asNumber(raw.passing_yards)),
-        rushYards: this.sumOrNull(seed.rushYards, this.asNumber(raw.rushing_yards)),
-        turnovers: this.sumOrNull(seed.turnovers, this.totalTurnoversFromPlayerStat(stat)),
-      });
-    }
-
-    return [...bucket.values()];
-  }
-
-  private async fetchTeamGamePoints(
-    query: TeamStatsQuery
-  ): Promise<Map<string, { pointsFor: number; pointsAgainst: number }>> {
-    const gameParams = this.toParams({
-      season: query.season,
-      week: query.week,
-      seasonType: query.seasonType,
-      perPage: 200,
-    });
-    const teamFilter = this.normalizeTeamFilter(query);
-    if (teamFilter) {
-      gameParams.set("team_id", teamFilter);
-      gameParams.set("team", teamFilter);
-    }
-
-    const games = await this.fetchAllGamesPages(gameParams, 200);
-    const map = new Map<string, { pointsFor: number; pointsAgainst: number }>();
-    for (const game of games) {
-      const homeTeamId = this.asString(game.home_team?.id);
-      const awayTeamId = this.asString(game.away_team?.id);
-      const pointsHome = game.home_points ?? null;
-      const pointsAway = game.away_points ?? null;
-      const season = game.season ?? null;
-      const week = game.week ?? null;
-      const seasonType = game.season_type ?? null;
-
-      if (homeTeamId && pointsHome !== null && pointsAway !== null) {
-        const key = this.buildTeamStatKey(homeTeamId, season, week, seasonType);
-        const existing = map.get(key) ?? { pointsFor: 0, pointsAgainst: 0 };
-        map.set(key, {
-          pointsFor: existing.pointsFor + pointsHome,
-          pointsAgainst: existing.pointsAgainst + pointsAway,
-        });
-      }
-
-      if (awayTeamId && pointsHome !== null && pointsAway !== null) {
-        const key = this.buildTeamStatKey(awayTeamId, season, week, seasonType);
-        const existing = map.get(key) ?? { pointsFor: 0, pointsAgainst: 0 };
-        map.set(key, {
-          pointsFor: existing.pointsFor + pointsAway,
-          pointsAgainst: existing.pointsAgainst + pointsHome,
-        });
-      }
-    }
-
-    return map;
-  }
-
-  private async fetchAllStatsPages(
-    baseParams: URLSearchParams,
-    perPage?: number
-  ): Promise<RawPlayerStat[]> {
-    const safePerPage =
-      Number.isFinite(perPage) && Number(perPage) > 0
-        ? Math.min(Math.ceil(Number(perPage)), 100)
-        : 100;
-    return this.fetchAllPagedRows<RawPlayerStat>("stats", baseParams, safePerPage);
-  }
-
-  private async fetchAllGamesPages(
-    baseParams: URLSearchParams,
-    perPage: number
-  ): Promise<RawGame[]> {
-    const safePerPage = Math.min(Math.max(Math.ceil(perPage), 1), 200);
-    return this.fetchAllPagedRows<RawGame>("games", baseParams, safePerPage);
-  }
-
-  private async fetchAllPagedRows<T>(
-    path: string,
-    baseParams: URLSearchParams,
-    perPage: number
-  ): Promise<T[]> {
-    const allRows: T[] = [];
-    let projectedPages: number | undefined;
-
-    for (let currentPage = 1; currentPage <= DEFAULT_PAGE_LIMIT; currentPage += 1) {
-      const params = new URLSearchParams(baseParams);
-      params.set("page", String(currentPage));
-      params.set("per_page", String(perPage));
-      const json = await this.fetchFromSource<{
-        data: T[];
-        meta?: { total_pages?: number };
-      }>(path, params);
-
-      if (!Array.isArray(json?.data)) {
-        throw new NflSourceError(
-          "INVALID_RESPONSE",
-          `${path} response missing data array on page ${currentPage}`
-        );
-      }
-
-      allRows.push(...json.data);
-
-      const totalPages = Number(json?.meta?.total_pages);
-      if (currentPage === 1 && Number.isFinite(totalPages) && totalPages > 0) {
-        projectedPages = totalPages;
-        const now = this.nowProvider();
-        const remainingRequests = this.remainingRequestsInWindow(now);
-        if (projectedPages > remainingRequests + 1) {
-          throw new NflSourceError(
-            "RATE_LIMIT",
-            `Local budget would be exceeded for ${path} pagination. Needed ${projectedPages} requests but only ${remainingRequests + 1} remain in this ${this.requestWindowMs / 1000}s window.`,
-            429
-          );
-        }
-      }
-
-      if (Number.isFinite(totalPages) && totalPages > DEFAULT_PAGE_LIMIT) {
-        throw new NflSourceError(
-          "UPSTREAM_ERROR",
-          `${path} pagination exceeds supported limit of ${DEFAULT_PAGE_LIMIT} pages (${totalPages} reported).`
-        );
-      }
-
-      if (!Number.isFinite(totalPages) || totalPages <= 0 || currentPage >= totalPages) {
-        break;
-      }
-    }
-
-    return allRows;
-  }
-
-  private async fetchFromSource<T>(
-    path: string,
-    params: URLSearchParams = new URLSearchParams()
-  ): Promise<T> {
-    const baseCandidates = [
-      this.baseUrl,
-      ...DEFAULT_BASE_URLS.filter((url) => url !== this.baseUrl),
-    ];
-    const requestId = createRequestId();
-    const startedAt = Date.now();
-
-    let lastError: NflSourceError | null = null;
-
-    for (const base of baseCandidates) {
-      const url = new URL(path, `${base.endsWith("/") ? base : `${base}/`}`);
-      if (params.toString()) {
-        url.search = params.toString();
-      }
-
-      let tries = 0;
-      const apiKeys = this.balldontlieApiKeysProvider();
-      let keyIndex = 0;
-      let authModeIndex = 0;
-      const route = `${base}${base.endsWith("/") ? "" : "/"}${path}`;
-      let shouldRetry = true;
-      const authModes = this.getAuthModes();
-      while (shouldRetry) {
-        const apiKey = apiKeys[keyIndex] ?? "";
-        const authMode = authModes[authModeIndex] ?? "both";
-        let response: Response;
-        try {
-          this.ensureCircuitHealthy(route);
-          try {
-            this.ensureSourceBudget(route);
-          } catch (error) {
-            if (error instanceof NflSourceError && error.code === "RATE_LIMIT" && lastError) {
-              throw lastError;
-            }
-            throw error;
-          }
-          this.recordOutboundRequest(this.nowProvider());
-          const modeUrl = this.applyAuthModeToRequestUrl(url, apiKey);
-          response = await this.safeRequest(modeUrl.toString(), requestId, route, apiKey, authMode);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Unknown error";
-          if (error instanceof NflSourceError) {
-            this.maybeNoteCircuitFailure(error);
-            await logEvent({
-              requestId,
-              eventType: "source",
-              source: "balldontlie",
-              method: "GET",
-              route,
-              ok: false,
-              latencyMs: Date.now() - startedAt,
-              retryCount: tries,
-              level: "error",
-              ts: new Date().toISOString(),
-              errorCode: error.code,
-              errorMessage: message,
-            });
-            throw error;
-          }
-
-          await logEvent({
-            requestId,
-            eventType: "source",
-            source: "balldontlie",
-            method: "GET",
-            route,
-            ok: false,
-            latencyMs: Date.now() - startedAt,
-            retryCount: tries,
-            level: "error",
-            ts: new Date().toISOString(),
-            errorCode: "UPSTREAM_ERROR",
-            errorMessage: message,
-          });
-          throw new NflSourceError("UPSTREAM_ERROR", message, undefined, {
-            requestId,
-            endpoint: route,
-          });
-        }
-
-        if (response.ok && response.status >= 200 && response.status < 300) {
-          this.noteCircuitSuccess();
-          const latencyMs = Date.now() - startedAt;
-          await logEvent({
-            requestId,
-            eventType: "source",
-            source: "balldontlie",
-            method: "GET",
-            route,
-            status: response.status,
-            ok: response.ok,
-            latencyMs,
-            retryCount: tries,
-            level: "info",
-            ts: new Date().toISOString(),
-            responseSizeBytes: Number(response.headers.get("content-length") || 0),
-          });
-          return (await response.json()) as T;
-        }
-
-        const retryAllowed = this.shouldRetryStatus(response.status, tries);
-        if (retryAllowed) {
-          tries += 1;
-          const retryAfterHeader = response.headers.get("retry-after");
-          const retryDelay = this.resolveRetryDelayMs(
-            retryAfterHeader,
-            tries,
-            STRICT_429_RETRY_POLICY.backoffMs.base
-          );
-          const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[response.status] ?? 0;
-          const message = `Rate-limited for ${path}. Retrying in ${retryDelay / 1000}s (${tries}/${maxRetries}).`;
-          await logEvent({
-            requestId,
-            eventType: "source",
-            source: "balldontlie",
-            method: "GET",
-            route,
-            status: response.status,
-            ok: false,
-            latencyMs: Date.now() - startedAt,
-            retryCount: tries,
-            rateLimitWaitMs: retryDelay,
-            level: "warn",
-            ts: new Date().toISOString(),
-            errorCode: "RATE_LIMIT",
-            errorMessage: message,
-          });
-          await this.wait(retryDelay);
-          continue;
-        }
-
-        if (response.status !== 429 && tries > 0) {
-          await logEvent({
-            requestId,
-            eventType: "source",
-            source: "balldontlie",
-            method: "GET",
-            route,
-            status: response.status,
-            ok: false,
-            latencyMs: Date.now() - startedAt,
-            retryCount: tries,
-            level: "warn",
-            ts: new Date().toISOString(),
-            errorCode: this.mapStatusToErrorCode(response.status),
-            errorMessage: `Retry policy (${RETRY_POLICY_DESCRIPTION}) skipped retries for status ${response.status}.`,
-          });
-        }
-
-        const code = this.mapStatusToErrorCode(response.status);
-
-        const message = await response.text().catch(() => "Unable to read response body");
-        const maybeJson = this.tryParseJson(message);
-        const detail =
-          typeof maybeJson === "object" && maybeJson !== null
-            ? JSON.stringify(maybeJson)
-            : String(message);
-        const retryAfterMs = this.parseRetryAfterMs(response.headers.get("retry-after"));
-        lastError = new NflSourceError(
-          code,
-          `Balldontlie request failed (${response.status}) for ${path}: ${detail}`,
-          response.status,
-          {
-            requestId,
-            endpoint: route,
-            retryAfterMs,
-          }
-        );
-        await logEvent({
-          requestId,
-          eventType: "source",
-          source: "balldontlie",
-          method: "GET",
-          route,
-          status: response.status,
-          ok: false,
-          latencyMs: Date.now() - startedAt,
-          retryCount: tries,
-          level: "error",
-          ts: new Date().toISOString(),
-          errorCode: code,
-          errorMessage: lastError.message,
-        });
-
-        if (response.status === 401) {
-          if (keyIndex < apiKeys.length - 1) {
-            await logEvent({
-              requestId,
-              eventType: "source",
-              source: "balldontlie",
-              method: "GET",
-              route,
-              status: response.status,
-              ok: false,
-              latencyMs: Date.now() - startedAt,
-              retryCount: tries,
-              level: "warn",
-              ts: new Date().toISOString(),
-              errorCode: code,
-              errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)}. Trying fallback key.`,
-            });
-            keyIndex += 1;
-            authModeIndex = 0;
-            tries = 0;
-            continue;
-          }
-
-          if (authModeIndex + 1 < authModes.length) {
-            await logEvent({
-              requestId,
-              eventType: "source",
-              source: "balldontlie",
-              method: "GET",
-              route,
-              status: response.status,
-              ok: false,
-              latencyMs: Date.now() - startedAt,
-              retryCount: tries,
-              level: "warn",
-              ts: new Date().toISOString(),
-              errorCode: code,
-              errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)} with auth mode ${this.formatAuthMode(authMode)}. Trying alternate auth mode.`,
-            });
-            authModeIndex += 1;
-            tries = 0;
-            continue;
-          }
-
-          await logEvent({
-            requestId,
-            eventType: "source",
-            source: "balldontlie",
-            method: "GET",
-            route,
-            status: response.status,
-            ok: false,
-            latencyMs: Date.now() - startedAt,
-            retryCount: tries,
-            level: "warn",
-            ts: new Date().toISOString(),
-            errorCode: code,
-            errorMessage: `Authorization failed using key ${this.maskApiKey(apiKey)} with auth mode ${this.formatAuthMode(authMode)}.`,
-          });
-        }
-
-        if (response.status !== 404 && response.status !== 401) {
-          this.maybeNoteCircuitFailure(lastError);
-          throw lastError;
-        }
-
-        this.maybeNoteCircuitFailure(lastError);
-        shouldRetry = false;
-        break;
-      }
-    }
-
-    if (!lastError) {
-      throw new NflSourceError("NO_DATA", `No valid response for ${path}`);
-    }
-
-    throw lastError;
-  }
-
-  private async wait(ms: number): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private resolveRetryDelayMs(
-    retryAfterHeader: string | null,
-    attempt: number,
-    baseBackoffMs: number
-  ): number {
-    const clamp = (value: number) =>
-      Math.min(
-        Math.max(value, STRICT_429_RETRY_POLICY.backoffMs.min),
-        STRICT_429_RETRY_POLICY.backoffMs.max
-      );
-
-    if (!retryAfterHeader) {
-      return clamp(baseBackoffMs * attempt);
-    }
-
-    const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
-    if (!Number.isNaN(retryAfterSeconds)) {
-      return clamp(retryAfterSeconds * 1000);
-    }
-
-    const asDateMs = Date.parse(retryAfterHeader);
-    if (Number.isFinite(asDateMs)) {
-      const delta = asDateMs - Date.now();
-      return clamp(delta);
-    }
-
-    return clamp(baseBackoffMs * attempt);
-  }
-
-  private shouldRetryStatus(status: number, tries: number): boolean {
-    if (!STRICT_429_RETRY_POLICY.retryOnStatus.includes(status)) return false;
-    const maxRetries = STRICT_429_RETRY_POLICY.maxRetriesByStatus[status] ?? 0;
-    return tries < maxRetries;
-  }
-
-  private parseRetryAfterMs(retryAfterHeader: string | null): number | undefined {
-    if (!retryAfterHeader) {
-      return undefined;
-    }
-
-    const retryAfterSeconds = Number.parseInt(retryAfterHeader, 10);
-    if (!Number.isNaN(retryAfterSeconds)) {
-      return retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
-    }
-
-    const retryAfterDateMs = Date.parse(retryAfterHeader);
-    if (Number.isFinite(retryAfterDateMs)) {
-      const delta = retryAfterDateMs - Date.now();
-      return delta > 0 ? delta : 0;
-    }
-
-    return undefined;
-  }
-
-  private safeRequest(
-    url: string,
-    requestId: string,
-    endpoint: string,
-    apiKey: string,
-    authMode: BalldontlieAuthMode
-  ): Promise<Response> {
-    const headers = this.buildAuthHeaders(apiKey, authMode);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    return fetch(url, {
-      headers,
-      method: "GET",
-      signal: controller.signal,
-    })
-      .catch((error) => {
-        if (error instanceof Error && error.name === "AbortError") {
-          throw new NflSourceError("TIMEOUT", `Request timed out after ${this.timeoutMs}ms`, 408, {
-            requestId,
-            endpoint,
-          });
-        }
-
-        throw error instanceof NflSourceError
-          ? error
-          : new NflSourceError("UPSTREAM_ERROR", `Request failed for ${url}`, 500, {
-              requestId,
-              endpoint,
-            });
-      })
-      .finally(() => {
-        clearTimeout(timeout);
-      });
-  }
-
-  private buildAuthHeaders(apiKey: string, authMode: BalldontlieAuthMode): HeadersInit {
-    if (authMode === "authorizationOnly") {
-      return {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      };
-    }
-
-    if (authMode === "xApiKeyOnly") {
-      return {
-        Accept: "application/json",
-        "X-API-Key": apiKey,
-      };
-    }
+  private toTeamStatRecord(row: Record<string, unknown>, includeWeek: boolean): TeamStat {
+    const season = normalizeInteger(row.season);
+    const week = includeWeek ? normalizeInteger(row.week) : null;
+    const teamId = String(row.team_id);
+    const gameId = includeWeek ? String(row.game_id ?? "") : "season";
 
     return {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      id: includeWeek
+        ? `${season ?? "unknown"}:${week ?? "unknown"}:${gameId}:${teamId}`
+        : `${season ?? "unknown"}:season:${teamId}`,
+      teamId,
+      season,
+      week,
+      seasonType: typeof row.season_type === "string" ? row.season_type : null,
+      pointsFor: normalizeInteger(row.points_for),
+      pointsAgainst: normalizeInteger(row.points_against),
+      totalYards: normalizeInteger(row.total_yards),
+      passYards: normalizeInteger(row.pass_yards),
+      rushYards: normalizeInteger(row.rush_yards),
+      turnovers: normalizeInteger(row.turnovers),
     };
   }
-
-  private getAuthModes(): BalldontlieAuthMode[] {
-    return ["authorizationOnly", "xApiKeyOnly"];
-  }
-
-  private formatAuthMode(authMode: BalldontlieAuthMode): string {
-    if (authMode === "authorizationOnly") {
-      return "authorization-only";
-    }
-    if (authMode === "xApiKeyOnly") {
-      return "x-api-key-only";
-    }
-    return "authorization-only";
-  }
-
-  private applyAuthModeToRequestUrl(baseUrl: URL, apiKey: string): URL {
-    if (!apiKey) {
-      return baseUrl;
-    }
-    return baseUrl;
-  }
-
-  private sumOrNull(
-    current: number | null | undefined,
-    next: number | null | undefined
-  ): number | null {
-    if (current === null || typeof current === "undefined") {
-      return next ?? null;
-    }
-    if (next === null || typeof next === "undefined") {
-      return current;
-    }
-    return current + next;
-  }
-
-  private totalYardsFromPlayerStats(raw: RawPlayerStat): number | null {
-    const passYards = this.asNumber(raw.passing_yards);
-    const rushYards = this.asNumber(raw.rushing_yards);
-    if (passYards === null && rushYards === null) return null;
-    return (passYards ?? 0) + (rushYards ?? 0);
-  }
-
-  private totalTurnoversFromPlayerStat(stat: PlayerStat): number | null {
-    return this.sumOrNull(
-      this.sumOrNull(stat.interceptions, null),
-      this.sumOrNull(stat.fumblesLost, null)
-    );
-  }
-
-  private mapStatusToErrorCode(status: number): NflSourceErrorCode {
-    if (status === 401) return "UNAUTHORIZED";
-    if (status === 404) return "NOT_FOUND";
-    if (status === 429) return "RATE_LIMIT";
-    return "UPSTREAM_ERROR";
-  }
-
-  private tryParseJson(value: string): unknown {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-
-  private maskApiKey(apiKey: string): string {
-    if (apiKey.length <= 8) {
-      return "********";
-    }
-
-    return `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
-  }
 }
 
-interface RawTeam {
-  id: number;
-  name: string;
-  abbreviation: string;
-  city?: string | null;
-  conference?: string | null;
-  division?: {
-    name?: string;
-  } | null;
-}
-
-interface RawPlayer {
-  id: number;
-  first_name: string;
-  last_name: string;
-  position?: string | null;
-  team?: {
-    id: number;
-    name?: string;
-    full_name?: string;
-  } | null;
-}
-
-interface RawPlayerStat {
-  id: number;
-  player_id?: number | string | null;
-  player?: {
-    id?: number | string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    team_id?: number | string | null;
-    team?: {
-      id?: number | string | null;
-      name?: string | null;
-      full_name?: string | null;
-    } | null;
-  } | null;
-  team_id?: number | string | null;
-  team?: {
-    id?: number | string | null;
-    name?: string | null;
-    full_name?: string | null;
-  } | null;
-  game_id?: number | string | null;
-  game?: {
-    id?: number | string | null;
-    season?: number | string | null;
-    week?: number | string | null;
-    season_type?: string | null;
-  } | null;
-  season?: number | string | null;
-  week?: number | string | null;
-  season_type?: string | null;
-  passing_attempts?: number | string | null;
-  passing_completions?: number | string | null;
-  passing_yards?: number | string | null;
-  passing_td?: number | string | null;
-  interceptions?: number | string | null;
-  rushing_attempts?: number | string | null;
-  rushing_yards?: number | string | null;
-  rushing_td?: number | string | null;
-  receptions?: number | string | null;
-  targets?: number | string | null;
-  receiving_yards?: number | string | null;
-  receiving_td?: number | string | null;
-  defense_tackles?: number | string | null;
-  defense_sacks?: number | string | null;
-  fumbles?: number | string | null;
-  fumbles_lost?: number | string | null;
-  two_point_conversions?: number | string | null;
-}
-
-interface RawGame {
-  id: number;
-  week?: number | null;
-  season?: number | null;
-  season_type?: string | null;
-  start_time?: string | null;
-  status?: string | null;
-  home_team?: {
-    id?: number | string | null;
-    name?: string | null;
-  } | null;
-  away_team?: {
-    id?: number | string | null;
-    name?: string | null;
-  } | null;
-  home_points?: number | null;
-  away_points?: number | null;
+function addNullable(current: number | null | undefined, next: number | null): number | null {
+  if (current === null || current === undefined) return next;
+  if (next === null) return current;
+  return current + next;
 }

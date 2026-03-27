@@ -7,7 +7,7 @@ import type { IDataSource } from "./publicNflSource.ts";
 const fakeSource: IDataSource = {
   getTeams: async () => [
     {
-      id: "1",
+      id: "ATL",
       name: "Falcons",
       abbreviation: "ATL",
       city: "Atlanta",
@@ -21,8 +21,8 @@ const fakeSource: IDataSource = {
       firstName: "Tom",
       lastName: "Brady",
       position: null,
-      teamId: "1",
-      team: "Falcons",
+      teamId: "ATL",
+      team: "Atlanta Falcons",
     },
   ],
   getGames: async () => [
@@ -31,11 +31,11 @@ const fakeSource: IDataSource = {
       week: 1,
       season: 2025,
       seasonType: "REG",
-      kickoffAt: "2025-09-10T20:00:00Z",
+      kickoffAt: "2025-09-10",
       weekDay: null,
       status: "Final",
-      homeTeam: "Falcons",
-      awayTeam: "Bears",
+      homeTeam: "Atlanta Falcons",
+      awayTeam: "Chicago Bears",
       homeScore: 27,
       awayScore: 13,
     },
@@ -45,8 +45,8 @@ const fakeSource: IDataSource = {
       id: "ps1",
       playerId: "22",
       playerName: "Tom Brady",
-      teamId: "1",
-      teamName: "Falcons",
+      teamId: "ATL",
+      teamName: "Atlanta Falcons",
       gameId: "g1",
       season: 2025,
       week: 1,
@@ -61,7 +61,7 @@ const fakeSource: IDataSource = {
   getTeamStats: async () => [
     {
       id: "ts1",
-      teamId: "1",
+      teamId: "ATL",
       season: 2025,
       week: 1,
       seasonType: "REG",
@@ -84,12 +84,12 @@ test("canonical service wraps source and maps entities", async () => {
   const playerStats = await service.getPlayerStats();
 
   assert.equal(teams.length, 1);
-  assert.equal(teams[0].source, "balldontlie");
-  assert.equal(teams[0].id, "1");
+  assert.equal(teams[0].source, "nflverse");
+  assert.equal(teams[0].id, "ATL");
   assert.equal(teams[0].city, "Atlanta");
 
   assert.equal(players[0].fullName, "Tom Brady");
-  assert.equal(players[0].source, "balldontlie");
+  assert.equal(players[0].source, "nflverse");
 
   assert.equal(games[0].seasonType, "REG");
   assert.equal(games[0].status, "Final");

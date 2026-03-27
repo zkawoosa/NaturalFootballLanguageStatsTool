@@ -9,12 +9,12 @@ Build a local-first web app where users can query NFL statistics using natural l
 - TypeScript + Next.js application.
 - Natural-language query input.
 - Basic query intents implemented with rule-based parsing.
-- Local-first data retrieval via pluggable adapter.
-- Initial data source: public NFL endpoint adapter.
+- Local-first data retrieval via a snapshot-backed adapter.
+- Primary data source: build-time nflverse releases materialized into SQLite.
 - No auth required for MVP.
 - Persistence:
-  - Primary store: SQLite (local-first cache + normalized entities + query history).
-  - Optional fallback/extension: cache raw API responses as JSON blobs (can stay in SQLite initially).
+  - Primary store: SQLite (snapshot tables + local cache + query history).
+  - Snapshot is rebuilt at build time from nflverse release assets.
 
 ## 3) Supported Query Types (MVP)
 
@@ -46,7 +46,7 @@ Build a local-first web app where users can query NFL statistics using natural l
 
 ### Output (success)
 
-- `{ intent, slots, results, summary, confidence, dataSource: "public" }`
+- `{ intent, slots, results, summary, confidence, dataSource: "nflverse" }`
 
 ### Output (clarification)
 
@@ -69,9 +69,9 @@ Build a local-first web app where users can query NFL statistics using natural l
 ## 8) Data Source Adapter Design (required)
 
 - Define `IDataSource` interface.
-- Implement public endpoint adapter first.
+- Implement a SQLite-backed nflverse adapter.
 - Keep parser independent from data source.
-- Ensure easy switch to paid provider in later phase.
+- Keep snapshot build logic separate from runtime query logic.
 
 ## 9) MVP Acceptance Criteria (Day 28 target)
 
@@ -79,3 +79,4 @@ Build a local-first web app where users can query NFL statistics using natural l
 - Correct handling of invalid/ambiguous input.
 - Stable local run with predictable errors and loading states.
 - Minimal docs in README for setup and usage.
+- Snapshot build and verification succeed from a clean checkout.

@@ -8,7 +8,10 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     env:
-      BL_API_KEY: ci-placeholder-key
+      NFL_SOURCE: nflverse
+      NFLVERSE_DEFAULT_SEASON: "2025"
+      NFLVERSE_SNAPSHOT_SEASON: "2025"
+      NFL_SQLITE_PATH: data/ci-nfl-query.sqlite
       NFL_LOG_TO_FILE: "0"
       NFL_QUERY_TEST_QUIET_LOGS: "1"
 
@@ -24,6 +27,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build nflverse snapshot
+        run: npm run build:snapshot
+
+      - name: Verify nflverse snapshot
+        run: npm run verify:snapshot
 
       - name: Check formatting
         run: npm run format

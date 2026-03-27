@@ -23,15 +23,15 @@ const RATE_LIMIT_SUMMARY_MESSAGE =
   "Due to data source constraints, we are limited to 5 queries per minute for now";
 const SOURCE_UNAVAILABLE_SUMMARY_MESSAGE =
   "Data source is temporarily unavailable. Please try again.";
-const SOURCE_AUTH_MESSAGE =
-  "The source API key is invalid or expired. Update your BL_API_KEY configuration.";
+const SOURCE_SNAPSHOT_MESSAGE =
+  "The nflverse snapshot is missing or unreadable. Run `npm run build:snapshot` and redeploy.";
 const SOURCE_NOT_FOUND_SUMMARY_MESSAGE = "Requested data was not found.";
 const SOURCE_TIMEOUT_SUMMARY_MESSAGE = "The source request timed out. Please try again.";
 const SOURCE_RESPONSE_SUMMARY_MESSAGE = "The source returned an unexpected response.";
 
 function resolveSourceSummary(code: NflSourceErrorCode): string {
   if (code === "RATE_LIMIT") return RATE_LIMIT_SUMMARY_MESSAGE;
-  if (code === "UNAUTHORIZED") return SOURCE_AUTH_MESSAGE;
+  if (code === "UNAUTHORIZED" || code === "NO_DATA") return SOURCE_SNAPSHOT_MESSAGE;
   if (code === "NOT_FOUND") return SOURCE_NOT_FOUND_SUMMARY_MESSAGE;
   if (code === "TIMEOUT") return SOURCE_TIMEOUT_SUMMARY_MESSAGE;
   if (code === "INVALID_RESPONSE") return SOURCE_RESPONSE_SUMMARY_MESSAGE;

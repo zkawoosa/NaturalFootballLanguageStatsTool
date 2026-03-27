@@ -36,7 +36,7 @@ test("POST /api/query returns structured response for valid input", async () => 
         return [
           {
             id: "p1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "p1",
             playerId: "100",
             teamId: "10",
@@ -168,7 +168,7 @@ test("POST /api/query maps team stat intent to getTeamStats and returns mapped r
         return [
           {
             id: "1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "1",
             name: "Atlanta Falcons",
             abbreviation: "ATL",
@@ -180,7 +180,7 @@ test("POST /api/query maps team stat intent to getTeamStats and returns mapped r
         return [
           {
             id: "ts-1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "ts-1",
             teamId: "1",
             scope: "week",
@@ -222,7 +222,7 @@ test("POST /api/query returns empty success state when adapter finds no rows", a
         return [
           {
             id: "1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "1",
             name: "Atlanta Falcons",
             abbreviation: "ATL",
@@ -322,14 +322,14 @@ test("POST /api/query supports team compare with team-only stat mapping", async 
         return [
           {
             id: "1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "1",
             name: "Atlanta Falcons",
             abbreviation: "ATL",
           } as unknown as Awaited<ReturnType<ICanonicalStatsService["getTeams"]>>[number],
           {
             id: "2",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "2",
             name: "Baltimore Ravens",
             abbreviation: "BAL",
@@ -341,7 +341,7 @@ test("POST /api/query supports team compare with team-only stat mapping", async 
         return [
           {
             id: `ts-${getTeamStatsCalls}`,
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: `ts-${getTeamStatsCalls}`,
             teamId: getTeamStatsCalls === 1 ? "1" : "2",
             scope: "week",
@@ -426,7 +426,7 @@ test("POST /api/query maps unauthorized source failures to explicit status", asy
   assert.equal(body.needsClarification, false);
   assert.equal(
     body.summary,
-    "The source API key is invalid or expired. Update your BL_API_KEY configuration."
+    "The nflverse snapshot is missing or unreadable. Run `npm run build:snapshot` and redeploy."
   );
   assert.equal(body.sourceError, true);
   assert.equal(body.errorCode, "UNAUTHORIZED");
@@ -479,7 +479,7 @@ test("POST /api/query surfaces stale cached results when service indicates fallb
         getPlayerStats: async () => [
           {
             id: "p1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "p1",
             playerId: "100",
             teamId: "10",
@@ -601,7 +601,7 @@ test("POST /api/query applies request context when the follow-up query omits tea
         return [
           {
             id: "1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "1",
             name: "Atlanta Falcons",
             abbreviation: "ATL",
@@ -653,7 +653,7 @@ test("POST /api/query aggregates season-scoped player stats before sorting leade
         [
           {
             id: "a-1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "a-1",
             playerId: "10",
             teamId: "1",
@@ -664,7 +664,7 @@ test("POST /api/query aggregates season-scoped player stats before sorting leade
           },
           {
             id: "a-2",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "a-2",
             playerId: "10",
             teamId: "1",
@@ -675,7 +675,7 @@ test("POST /api/query aggregates season-scoped player stats before sorting leade
           },
           {
             id: "b-1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "b-1",
             playerId: "20",
             teamId: "2",
@@ -714,14 +714,14 @@ test("POST /api/query aggregates season-scoped team comparisons before choosing 
         [
           {
             id: "1",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "1",
             name: "Atlanta Falcons",
             abbreviation: "ATL",
           },
           {
             id: "2",
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: "2",
             name: "Baltimore Ravens",
             abbreviation: "BAL",
@@ -731,7 +731,7 @@ test("POST /api/query aggregates season-scoped team comparisons before choosing 
         [
           {
             id: `row-${String(query?.teamId)}-1`,
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: `row-${String(query?.teamId)}-1`,
             teamId: String(query?.teamId),
             scope: "week",
@@ -741,7 +741,7 @@ test("POST /api/query aggregates season-scoped team comparisons before choosing 
           },
           {
             id: `row-${String(query?.teamId)}-2`,
-            source: "balldontlie",
+            source: "nflverse",
             sourceId: `row-${String(query?.teamId)}-2`,
             teamId: String(query?.teamId),
             scope: "week",

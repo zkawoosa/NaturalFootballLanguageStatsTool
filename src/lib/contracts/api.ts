@@ -110,7 +110,7 @@ export type CacheStatus = {
 };
 
 export type StatusResponse = {
-  source: "balldontlie";
+  source: "nflverse";
   healthy: boolean;
   latencyMs: number | null;
   checkedAt: string;

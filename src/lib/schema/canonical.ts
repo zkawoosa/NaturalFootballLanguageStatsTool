@@ -1,4 +1,4 @@
-export type CanonicalSource = "balldontlie";
+export type CanonicalSource = "nflverse";
 
 export type SourceId = string;
 

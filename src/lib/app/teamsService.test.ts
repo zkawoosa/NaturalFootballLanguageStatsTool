@@ -22,7 +22,7 @@ test("teams service returns mapped team summaries from canonical records", async
     getTeams: async () => [
       {
         id: "1",
-        source: "balldontlie",
+        source: "nflverse",
         sourceId: "1",
         name: "Falcons",
         abbreviation: "ATL",

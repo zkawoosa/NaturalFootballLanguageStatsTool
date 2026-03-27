@@ -31,7 +31,7 @@ export interface ICanonicalStatsService {
   runWithRequestContext?: <T>(callback: () => Promise<T>) => Promise<T>;
 }
 
-const SOURCE_NAME: CanonicalSource = "balldontlie";
+const SOURCE_NAME: CanonicalSource = "nflverse";
 const UNKNOWN_SEASON = 0 as const;
 
 export class CanonicalStatsService implements ICanonicalStatsService {

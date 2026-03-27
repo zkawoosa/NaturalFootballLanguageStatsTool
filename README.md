@@ -1,112 +1,63 @@
 # NFL Query
 
-Natural-language NFL stats web app built to turn user queries like `Who has the most passing yards in week 7?` into structured NFL stat lookups.
+Natural-language NFL stats web app that turns queries like `Who has the most passing yards in week 7?` into structured NFL stat lookups.
 
-The current MVP supports player stats, team stats, leaderboard-style queries, comparisons, clarification flows, unsupported-query handling, and source-backed API routes on a single-instance Node deployment.
+## Current architecture
 
-## Tech Stack
+The app no longer calls a live third-party stats API at request time.
+
+Instead it:
+
+1. Downloads nflverse release data at build time.
+2. Materializes a SQLite snapshot.
+3. Serves all stats queries from that local snapshot.
+
+That removes the old upstream auth and 5-requests-per-minute bottleneck.
+
+## Tech stack
 
 - TypeScript
 - Next.js 14
 - React 18
 - Node.js 24
-- Next.js App Router
-- Next.js Route Handlers
-- Server-side `fetch`
-- In-memory caching
-- In-memory rate limiting / throttling
 - SQLite via `better-sqlite3`
-- BALLDONTLIE NFL API
-- Natural-language query parsing
-- Alias resolution and normalization pipeline
+- nflverse data releases
+- Node test runner (`node --test`)
 - ESLint
 - Prettier
-- Node test runner (`node --test`)
-- Render
-- GitHub
-- JSONL corpus / parser evaluation samples
-- Environment-variable based runtime configuration
 
-## What the App Does
-
-The app accepts natural-language NFL stat questions and maps them into a structured query flow:
-
-1. Parse the user query into intent, scope, entities, stat, sort, and limit.
-2. Resolve aliases for players and teams.
-3. Clarify ambiguous input when confidence is too low.
-4. Reject unsupported domains with an explicit unsupported state.
-5. Query the configured NFL data source.
-6. Return structured results for the UI.
-
-Examples:
-
-- `Who has the most passing yards in week 7?`
-- `Team stats for Chiefs this season`
-- `Compare Bills and Dolphins rushing yards this week`
-- `Top 5 receiving yards leaders this season`
-
-## Current Feature Scope
-
-Supported today:
-
-- Player stat queries
-- Team stat queries
-- Leaderboard / leaders queries
-- Team and player comparisons
-- Clarification responses for ambiguity or missing context
-- Unsupported-query responses for out-of-scope requests
-- Source status endpoint
-- Team listing endpoint
-
-Current API routes:
+## Supported API routes
 
 - `POST /api/query`
 - `GET /api/status`
 - `GET /api/teams`
 
-## Architecture Notes
+## Data flow
 
-This project is intentionally designed around a single-instance Node deployment.
+- Snapshot builder script: `npm run build:snapshot`
+- Runtime DB path: `NFL_SQLITE_PATH`
+- Default query season: `NFLVERSE_DEFAULT_SEASON`
+- Snapshot season to build: `NFLVERSE_SNAPSHOT_SEASON`
 
-Why:
+The snapshot builder currently ingests:
 
-- cache state is held in memory
-- upstream request budgeting is held in memory
-- service instances are process-local singletons
+- schedules: `games.csv.gz`
+- weekly rosters: `roster_weekly_<season>.csv.gz`
+- weekly player stats: `stats_player_week_<season>.csv.gz`
+- weekly team stats: `stats_team_week_<season>.csv.gz`
 
-That means the current design behaves most predictably on one running Node instance. A multi-instance or serverless deployment would fragment cache state and upstream rate-limit protection.
-
-The app now persists query history and cache entries to SQLite via `better-sqlite3` for local durability. Hot cache reads stay in memory, and the request-budget guard remains process-local.
-
-## Data Source
-
-Current source:
-
-- BALLDONTLIE NFL API
-
-Relevant operational constraint:
-
-- upstream free-tier budget is limited to `5 requests per minute`
-
-The app includes:
-
-- local request throttling to respect that constraint
-- cache support to reduce repeated upstream calls
-- retry handling for `429` rate-limit responses
-- structured fallback behavior for upstream failures
-
-## Local Development
+## Local development
 
 ### Prerequisites
 
 - Node.js `24.x`
 - npm `11.x`
 
-Runtime alignment note:
+Use the pinned runtime before installing or validating:
 
-- this repo pins Node with [`.nvmrc`](/Users/zainkawoosa/nfl-query/.nvmrc) and `package.json`
-- run `nvm use` before `npm install` or any validation command
-- native modules such as `better-sqlite3` should be installed and validated under the same Node major used in production
+```bash
+nvm use
+```
 
 ### Install
 
@@ -116,23 +67,25 @@ npm install
 
 ### Configure environment
 
-Create a local `.env` based on `.env.example` and set at minimum:
+Create a local `.env` from [`.env.example`](/Users/zainkawoosa/nfl-query/.env.example).
+
+Minimum useful config:
 
 ```env
-NFL_SOURCE=balldontlie
-BL_API_BASE_URL=https://api.balldontlie.io/nfl/v1
-BL_API_KEY=your_api_key_here
-BL_REQUESTS_PER_MINUTE=5
+NFL_SOURCE=nflverse
+NFLVERSE_DEFAULT_SEASON=2025
+NFLVERSE_SNAPSHOT_SEASON=2025
 NFL_LOG_TO_FILE=0
 NFL_CACHE_ENABLED=1
 NFL_CACHE_TTL_SECONDS=300
 NFL_SQLITE_PATH=data/nfl-query.sqlite
 ```
 
-Important:
+### Build the snapshot
 
-- do not commit `.env`
-- keep `NFL_LOG_TO_FILE=0` unless you explicitly want local file logging
+```bash
+npm run build:snapshot
+```
 
 ### Run locally
 
@@ -140,130 +93,78 @@ Important:
 npm run dev
 ```
 
-Open:
-
-- `http://localhost:3000`
-
 ### Production build locally
 
 ```bash
+npm run build:snapshot
+npm run verify:snapshot
 npm run build
 npm run start
 ```
 
-## Quality Checks
-
-Project checks:
+## Quality checks
 
 ```bash
+npm run build:snapshot
+npm run verify:snapshot
 npm run format
 npm run lint
 npm run test:quiet
 npm run build
 ```
 
-Notes:
-
-- tests use the Node test runner with `--experimental-strip-types`
-- formatting is enforced with Prettier
-- linting is enforced with ESLint
-
-## Query Behavior
-
-The parser currently supports:
-
-- intent detection
-- scope extraction
-- week / season parsing
-- player alias matching
-- team alias matching
-- comparator parsing
-- sort and limit extraction
-- clarification prompts for low-confidence inputs
-
-The parser corpus is tracked in JSONL form and can be evaluated with:
-
-```bash
-node --experimental-strip-types scripts/evaluate-parser-corpus.mjs
-```
-
-## Logging
-
-Runtime logging supports:
-
-- query events
-- source events
-- route response events
-
-Default behavior:
-
-- log to stdout / console
-
-Optional behavior:
-
-- file logging when `NFL_LOG_TO_FILE=1`
-
-Production note:
-
-- on Render, keep `NFL_LOG_TO_FILE=0` because the filesystem is ephemeral
-- SQLite persistence only survives restarts on hosts with a persistent filesystem
-- Render free web services can run the app with `better-sqlite3`, but they do not preserve the SQLite file across restarts or deploys
-- on Render, SQLite persistence requires a paid service with a persistent disk, and `NFL_SQLITE_PATH` must point inside that mounted disk path
-
 ## Deployment
 
-Recommended host for the current architecture:
+The app now fits any normal Node host better than the previous live-API design because runtime no longer depends on upstream auth or request budgeting.
 
-- Render free web service
+Recommended deploy shape:
 
-Why Render fits this MVP:
+- Build command:
 
-- public HTTPS website
-- easy GitHub-based deploy flow
-- supports server-side env vars
-- single-instance deployment model is a better fit for the app’s in-memory cache and request-budget logic
-- native Node addons such as `better-sqlite3` are supported on standard Node web services
+```bash
+npm install && npm run build:snapshot && npm run verify:snapshot && npm run build
+```
 
-### Render configuration
+- Start command:
 
-Use a Node web service with:
+```bash
+npm run start
+```
 
-- Branch: `master`
-- Runtime: `Node`
-- Instance Type: `Free`
-- Build Command: `npm install && npm run build`
-- Start Command: `npm run start`
+- Node version: `24`
 
-Recommended environment variables:
+## Hosting notes
 
-- `NODE_VERSION=24`
-- `BL_API_KEY=your_api_key`
-- `NFL_LOG_TO_FILE=0`
-- `NFL_SOURCE=balldontlie`
-- `BL_REQUESTS_PER_MINUTE=5`
-- `BL_API_BASE_URL=https://api.balldontlie.io/nfl/v1`
-- `NFL_CACHE_ENABLED=1`
-- `NFL_CACHE_TTL_SECONDS=300`
+### Render free tier
 
-Deployment note:
+- Works for this app.
+- The SQLite file is still ephemeral.
+- That is acceptable for the stats snapshot because it can be rebuilt during deploy.
+- Query history and persisted cache do not survive restarts or redeploys on the free tier.
 
-- source-backed `GET` routes are marked dynamic so `next build` does not make build-time upstream requests
+### Railway
 
-## Known Limitations
+- Also fits this design well.
+- Volumes are available if you later want persistent SQLite history/cache.
 
-- upstream source budget is still `5 requests per minute`
-- cache and request throttling are process-local, not shared across instances
-- SQLite-backed cache/history persistence depends on the host filesystem and will not survive restarts on ephemeral disks
-- comparator parsing is still largely keyword-based
-- health checks need to remain budget-aware so hosting probes do not burn source quota unnecessarily
-- this is an MVP and does not yet cover every NFL stat phrasing or every unsupported-domain cue
+## Status semantics
 
-## Project Status
+`GET /api/status` now reports whether the local nflverse snapshot is present and usable for stats queries.
 
-Current open roadmap themes:
+If the snapshot is missing, status should be unhealthy and query responses should surface a snapshot-related source error.
+
+GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLite schema, metadata, and core row counts before lint, tests, and app build.
+
+## Known limitations
+
+- Data freshness depends on when the snapshot was last built.
+- Server-side cache and recent history are still local to one runtime / one SQLite file.
+- Free hosts with ephemeral disks do not preserve query history or cache across restarts.
+- Parser coverage is still limited by the current lexicon and corpus.
+
+## Current roadmap leftovers
 
 - full manual QA pass
-- README and deploy polish
-- budget-aware hosting health checks
-- smoke test and known-limitation recording
 - comparator lexicon expansion
+- UI overhaul
+- deploy smoke verification against the nflverse snapshot flow

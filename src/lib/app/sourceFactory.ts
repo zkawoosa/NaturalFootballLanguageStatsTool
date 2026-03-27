@@ -11,10 +11,7 @@ export function createDataSource(): IDataSource {
 
   const runtimeConfig = getRuntimeConfig();
   const source = new PublicNflSource({
-    baseUrl: runtimeConfig.balldontlieBaseUrl,
-    timeoutMs: runtimeConfig.requestTimeoutMs,
-    requestWindowMax: runtimeConfig.requestsPerMinute,
-    requestWindowMs: 60_000,
+    defaultSeason: runtimeConfig.nflverseDefaultSeason,
   });
 
   dataSourceInstance = new CachedDataSource(source, {

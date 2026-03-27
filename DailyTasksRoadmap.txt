@@ -124,6 +124,10 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add source-health regression test that verifies probes call the uncached freshness path (`getTeamsFresh`) instead of the cached path.
 - [ ] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
 - [X] Add GitHub Actions CI for format, lint, tests, and build.
+- [X] Replace the live upstream stats dependency with a build-time nflverse SQLite snapshot flow.
+- [X] Migrate SQLite runtime access to `better-sqlite3`.
+- [X] Pin validation/runtime docs to Node 24 + npm 11.
+- [X] Extend CI to rebuild the nflverse snapshot from a clean checkout and verify SQLite schema/metadata before tests and app build.
 - [ ] Deploy preview, smoke test, record known limitations.
   - Current deploy blockers addressed in code:
     - Next.js route modules cannot export test helpers, so `/api/query` test injection was moved out of `src/app/api/query/route.ts` into a separate helper module.
@@ -134,13 +138,15 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] UI overhaul: redesign the website for a stronger production-quality visual system and layout.
 
 ## Residual Risks (living section)
-- Last updated: 2026-03-20
+- Last updated: 2026-03-26
 - [X] Alias coverage baseline expanded to 32 teams and >=500 players, and broad false-positive team tokens (`bay`, `las`, `new`, `city`) were removed.
   - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
 - [X] Unsupported-domain and unsupported-scope queries now resolve to an explicit unsupported state instead of falling through clarification.
   - Next mitigation: expand unsupported-domain cue coverage as the corpus grows.
 - [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
   - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
+- [ ] Snapshot freshness depends on the last successful `npm run build:snapshot`, so stale deploy artifacts can lag nflverse updates.
+  - Next mitigation: keep deploy smoke checks pointed at the built season and rebuild snapshots on a schedule.
 
 ## Parser Corpus Bucket Tracker (snapshot 2026-03-20)
 - Evaluator: `node --experimental-strip-types scripts/evaluate-parser-corpus.mjs`
