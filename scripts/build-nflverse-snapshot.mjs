@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import zlib from "node:zlib";
 import Database from "better-sqlite3";
 
@@ -11,6 +13,8 @@ const SQLITE_PATH = resolveSqlitePath(process.env);
 if (SQLITE_PATH === ":memory:") {
   throw new Error("NFL_SQLITE_PATH must point to a file when building the nflverse snapshot.");
 }
+
+fs.mkdirSync(path.dirname(SQLITE_PATH), { recursive: true });
 
 const db = new Database(SQLITE_PATH);
 initializeSqliteDatabase(db);
