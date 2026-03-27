@@ -15,6 +15,8 @@ Build a local-first web app where users can query NFL statistics using natural l
 - Persistence:
   - Primary store: SQLite (snapshot tables + local cache + query history).
   - Snapshot is rebuilt at build time from nflverse release assets.
+- Deployment artifact:
+  - Preferred deploy target is a container image with the verified SQLite snapshot baked in.
 
 ## 3) Supported Query Types (MVP)
 
@@ -80,3 +82,4 @@ Build a local-first web app where users can query NFL statistics using natural l
 - Stable local run with predictable errors and loading states.
 - Minimal docs in README for setup and usage.
 - Snapshot build and verification succeed from a clean checkout.
+- Preferred deploy artifact can be built reproducibly with the verified SQLite snapshot included.

@@ -128,6 +128,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Migrate SQLite runtime access to `better-sqlite3`.
 - [X] Pin validation/runtime docs to Node 24 + npm 11.
 - [X] Extend CI to rebuild the nflverse snapshot from a clean checkout and verify SQLite schema/metadata before tests and app build.
+- [X] Add a Docker-based deploy path so the verified sqlite snapshot is baked into the deploy artifact instead of rebuilt on the host.
 - [ ] Deploy preview, smoke test, record known limitations.
   - Current deploy blockers addressed in code:
     - Next.js route modules cannot export test helpers, so `/api/query` test injection was moved out of `src/app/api/query/route.ts` into a separate helper module.
@@ -146,7 +147,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
   - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
 - [ ] Snapshot freshness depends on the last successful `npm run build:snapshot`, so stale deploy artifacts can lag nflverse updates.
-  - Next mitigation: keep deploy smoke checks pointed at the built season and rebuild snapshots on a schedule.
+  - Next mitigation: keep deploy smoke checks pointed at the built season and rebuild container images on a schedule.
 
 ## Parser Corpus Bucket Tracker (snapshot 2026-03-20)
 - Evaluator: `node --experimental-strip-types scripts/evaluate-parser-corpus.mjs`

@@ -119,33 +119,57 @@ The app now fits any normal Node host better than the previous live-API design b
 
 Recommended deploy shape:
 
-- Build command:
+- Build and publish a Docker image in GitHub Actions.
+- Deploy that image to your host instead of doing a source build on the host.
+- The image already contains:
+  - the verified nflverse SQLite snapshot
+  - the built Next.js app
+  - the runtime Node dependencies
 
-```bash
-npm install && npm run build:snapshot && npm run verify:snapshot && npm run build
-```
+Current image workflow:
 
-- Start command:
+- [docker-image.yml](/Users/zainkawoosa/nfl-query/.github/workflows/docker-image.yml) builds and pushes `ghcr.io/<owner>/<repo>:latest` and `ghcr.io/<owner>/<repo>:sha-<commit>`.
 
-```bash
-npm run start
-```
+Current Docker build behavior:
 
-- Node version: `24`
+- [Dockerfile](/Users/zainkawoosa/nfl-query/Dockerfile) runs:
+  - `npm run build:snapshot`
+  - `npm run verify:snapshot`
+  - `npm run build`
+
+Runtime container defaults:
+
+- `NFL_SOURCE=nflverse`
+- `NFLVERSE_DEFAULT_SEASON=2025`
+- `NFL_SQLITE_PATH=/app/data/nfl-query.sqlite`
+- `PORT=3000`
 
 ## Hosting notes
 
 ### Render free tier
 
 - Works for this app.
-- The SQLite file is still ephemeral.
-- That is acceptable for the stats snapshot because it can be rebuilt during deploy.
-- Query history and persisted cache do not survive restarts or redeploys on the free tier.
+- Prefer Render's container/image deploy mode for this stack.
+- Do not rebuild the snapshot on Render.
+- The deployed image already contains the verified snapshot.
+- Query history and persisted cache remain ephemeral on the free tier.
 
 ### Railway
 
 - Also fits this design well.
 - Volumes are available if you later want persistent SQLite history/cache.
+
+## Container deployment notes
+
+For a Render image deploy:
+
+1. Point the service at the GHCR image built by GitHub Actions.
+2. Use the image tag you want to deploy:
+   - `latest` for newest default-branch image
+   - `sha-<commit>` for an immutable rollout
+3. Keep runtime env overrides minimal. Do not override `NFL_SQLITE_PATH` unless you intend to mount a different SQLite file.
+
+This removes deploy-time dependence on GitHub-hosted nflverse release assets. Only the image-build workflow needs that network access.
 
 ## Status semantics
 
@@ -153,7 +177,7 @@ npm run start
 
 If the snapshot is missing, status should be unhealthy and query responses should surface a snapshot-related source error.
 
-GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLite schema, metadata, and core row counts before lint, tests, and app build.
+GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLite schema, metadata, and core row counts before lint, tests, and app build. A separate image workflow bakes that verified snapshot into the deploy artifact.
 
 ## Known limitations
 
@@ -161,10 +185,11 @@ GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLi
 - Server-side cache and recent history are still local to one runtime / one SQLite file.
 - Free hosts with ephemeral disks do not preserve query history or cache across restarts.
 - Parser coverage is still limited by the current lexicon and corpus.
+- The image-publish workflow still depends on GitHub-hosted nflverse release assets when refreshing the baked snapshot.
 
 ## Current roadmap leftovers
 
 - full manual QA pass
 - comparator lexicon expansion
 - UI overhaul
-- deploy smoke verification against the nflverse snapshot flow
+- deploy smoke verification against the containerized nflverse snapshot flow
