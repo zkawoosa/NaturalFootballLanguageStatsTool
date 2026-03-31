@@ -10,3 +10,13 @@ test("parseNflQuery treats matchup phrasing as weekly summary when no stat is re
   assert.deepEqual(parsed.slots.teams, ["LV", "KC"]);
   assert.equal(parsed.slots.week, 7);
 });
+
+test("parseNflQuery infers a single-result limit for who-has-the-most leaderboard phrasing", () => {
+  const parsed = parseNflQuery("Who has the most passing yards in week 7?");
+
+  assert.equal(parsed.intent, "leaders");
+  assert.equal(parsed.slots.stat, "passingYards");
+  assert.equal(parsed.slots.sort, "desc");
+  assert.equal(parsed.slots.limit, 1);
+  assert.equal(parsed.slots.week, 7);
+});

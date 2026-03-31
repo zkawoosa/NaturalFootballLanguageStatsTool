@@ -89,6 +89,8 @@ const LIMIT_DIRECTIONAL_RE =
   /\b(?:top|best|most|highest|lowest|worst|fewest|least|bottom|first|last)\s+(\d{1,3})\b/i;
 const LIMIT_SUBJECT_RE = /\b(\d{1,3})\s+(?:leaders?|players?|teams?|results?)\b/i;
 const LIMIT_EXPLICIT_RE = /\blimit(?:\s+to)?\s+(\d{1,3})\b/i;
+const IMPLIED_SINGLE_LEADER_RE =
+  /\bwho\s+(?:has|had)\s+(?:the\s+)?(?:most|highest|best|fewest|least|lowest|worst|first|last)\b/i;
 const ANSWER_CONFIDENCE_MIN = 0.65;
 const CLARIFY_CONFIDENCE_MIN = 0.45;
 const LIMIT_MIN = 1;
@@ -929,7 +931,9 @@ function resolveLimit(value: string): number | null {
     value.match(LIMIT_DIRECTIONAL_RE) ??
     value.match(LIMIT_SUBJECT_RE) ??
     value.match(LIMIT_EXPLICIT_RE);
-  if (!limitMatch) return null;
+  if (!limitMatch) {
+    return IMPLIED_SINGLE_LEADER_RE.test(value) ? 1 : null;
+  }
   const parsed = parseInt(limitMatch[1], 10);
   if (!Number.isFinite(parsed)) return null;
   if (parsed < LIMIT_MIN) return null;

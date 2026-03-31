@@ -3,14 +3,14 @@
   font-family: var(--font-display), "Segoe UI", sans-serif;
   --font-sans: var(--font-display), "Segoe UI", sans-serif;
   --font-mono: var(--font-mono), "SFMono-Regular", monospace;
-  --bg-top: #1d2026;
-  --bg-bottom: #13161a;
+  --bg-top: #0d0f12;
+  --bg-bottom: #050608;
   --ink: #f4f7fb;
   --muted: #a7b6c6;
   --line: rgba(255, 255, 255, 0.09);
   --line-strong: rgba(255, 255, 255, 0.16);
-  --surface: rgba(24, 27, 33, 0.94);
-  --surface-strong: #22262d;
+  --surface: rgba(16, 18, 22, 0.96);
+  --surface-strong: #15181d;
   --surface-dark: #00274c;
   --accent: #ffcb05;
   --accent-deep: #d4a400;
@@ -48,8 +48,8 @@
   --result-bg-bottom: #1d2128;
   --result-value: #9bd2ff;
   --note-bg: rgba(24, 79, 134, 0.12);
-  --grid-blue: rgba(24, 79, 134, 0.08);
-  --grid-maize: rgba(255, 203, 5, 0.06);
+  --grid-blue: rgba(24, 79, 134, 0.04);
+  --grid-maize: rgba(255, 203, 5, 0.03);
 }
 
 :root[data-theme="light"] {
@@ -114,8 +114,8 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   background:
-    radial-gradient(circle at top left, rgba(255, 203, 5, 0.16), transparent 24%),
-    radial-gradient(circle at top right, rgba(24, 79, 134, 0.2), transparent 30%),
+    radial-gradient(circle at top left, rgba(255, 203, 5, 0.08), transparent 20%),
+    radial-gradient(circle at top right, rgba(24, 79, 134, 0.12), transparent 24%),
     linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
 }
 
@@ -128,7 +128,7 @@ body::before {
     linear-gradient(var(--grid-blue) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-maize) 1px, transparent 1px);
   background-size: 26px 26px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 72%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 68%);
 }
 
 button,
@@ -342,7 +342,7 @@ code {
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 18px;
   cursor: pointer;
 }
 
@@ -499,6 +499,11 @@ code {
   padding: 18px;
 }
 
+.query-form {
+  display: grid;
+  gap: 18px;
+}
+
 .field-heading label,
 .auth-field {
   display: block;
@@ -527,6 +532,16 @@ code {
   color: var(--ink);
   font-size: 1rem;
   box-shadow: var(--input-shadow);
+}
+
+.query-actions {
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.query-actions .button-primary,
+.query-actions .button-secondary {
+  min-width: 148px;
 }
 
 .query-bank h3 {

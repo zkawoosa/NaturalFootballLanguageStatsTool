@@ -72,6 +72,58 @@ test("POST /api/query returns structured response for valid input", async () => 
   assert.equal(getPlayerStatsCalls, 1);
 });
 
+test("POST /api/query returns only the top row for who-has-the-most leaderboard phrasing", async () => {
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async () =>
+        [
+          {
+            id: "p1",
+            source: "nflverse",
+            sourceId: "p1",
+            playerId: "00-0036355",
+            playerName: "Justin Herbert",
+            teamId: "LAC",
+            teamName: "Los Angeles Chargers",
+            scope: "week",
+            season: 2025,
+            week: 7,
+            passYards: 420,
+          },
+          {
+            id: "p2",
+            source: "nflverse",
+            sourceId: "p2",
+            playerId: "00-0034857",
+            playerName: "Patrick Mahomes",
+            teamId: "KC",
+            teamName: "Kansas City Chiefs",
+            scope: "week",
+            season: 2025,
+            week: 7,
+            passYards: 388,
+          },
+        ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>,
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Who has the most passing yards in week 7?" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+  const results = body.results as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "leaders");
+  assert.equal(results.length, 1);
+  assert.equal(results[0].playerName, "Justin Herbert");
+  assert.equal(results[0].value, 420);
+});
+
 test("POST /api/query returns clarification response for ambiguous input", async () => {
   let getTeamStatsCalls = 0;
   setQueryStatsServiceFactoryForTests(() =>
