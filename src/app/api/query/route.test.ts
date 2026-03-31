@@ -39,7 +39,9 @@ test("POST /api/query returns structured response for valid input", async () => 
             source: "nflverse",
             sourceId: "p1",
             playerId: "100",
+            playerName: "Saquon Barkley",
             teamId: "10",
+            teamName: "Philadelphia Eagles",
             scope: "week",
             season: 2025,
             week: 7,
@@ -65,6 +67,8 @@ test("POST /api/query returns structured response for valid input", async () => 
   assert.equal(body.dataSource, "nflverse");
   assert.equal(Array.isArray(body.results), true);
   assert.equal(body.summary, "Found 1 player stat result.");
+  assert.equal((body.results as Array<Record<string, unknown>>)[0].playerName, "Saquon Barkley");
+  assert.equal((body.results as Array<Record<string, unknown>>)[0].teamName, "Philadelphia Eagles");
   assert.equal(getPlayerStatsCalls, 1);
 });
 

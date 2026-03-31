@@ -138,7 +138,9 @@ export type CanonicalPlayerStat = {
   source: CanonicalSource;
   sourceId: SourceId;
   playerId: string;
+  playerName?: string | null;
   teamId: string;
+  teamName?: string | null;
   gameId?: string | null;
   scope: StatScope;
   season: number;

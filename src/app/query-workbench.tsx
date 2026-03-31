@@ -143,15 +143,20 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
   const statLabel = formatLabel(item.stat);
 
   if (type === "player_stat") {
+    const playerName = toDisplayValue(item.playerName) || `Player ${toDisplayValue(item.playerId)}`;
+    const teamLabel = toDisplayValue(item.teamName) || toDisplayValue(item.teamId);
+
     return (
       <article className="result-card">
         <ResultStatHeader
           kicker="Player stat"
-          title={`Player ${toDisplayValue(item.playerId)}`}
-          subtitle={[toDisplayValue(item.teamId), statLabel].filter(Boolean).join(" • ")}
+          title={playerName}
+          subtitle={[teamLabel, statLabel].filter(Boolean).join(" • ")}
           value={item.value}
         />
         <dl className="result-grid">
+          <ResultField label="Player" value={item.playerName} />
+          <ResultField label="Team" value={item.teamName} />
           <ResultField label="Player ID" value={item.playerId} />
           <ResultField label="Team ID" value={item.teamId} />
           <ResultField label="Season" value={item.season} />
