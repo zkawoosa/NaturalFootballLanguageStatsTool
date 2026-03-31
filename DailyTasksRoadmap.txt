@@ -135,6 +135,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Extend CI to rebuild the nflverse snapshot from a clean checkout and verify SQLite schema/metadata before tests and app build.
 - [X] Add a Docker-based deploy path so the verified sqlite snapshot is baked into the deploy artifact instead of rebuilt on the host.
 - [X] Deploy preview, smoke test, record known limitations.
+- [X] Move snapshot health checks behind an operator login page and protect `GET /api/status` with a session cookie.
   - Current deploy blockers addressed in code:
     - Next.js route modules cannot export test helpers, so `/api/query` test injection was moved out of `src/app/api/query/route.ts` into a separate helper module.
     - The repo uses explicit `.ts` import specifiers for the Node ESM test/runtime flow, so `tsconfig.json` now enables `allowImportingTsExtensions` for `next build` compatibility.
@@ -142,6 +143,8 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### Long Term Tasks
 - [X] Separate upstream/source failures from clarification in the UI so temporary data issues do not render as "Needs clarification".
 - [X] UI overhaul: redesign the website for a stronger production-quality visual system and layout.
+- [X] Retheme the UI around Michigan Wolverine maize and blue while keeping the page mostly white.
+- [X] Add default dark mode with a light-mode toggle while preserving the current layout.
 
 ## Residual Risks (living section)
 - Last updated: 2026-03-26

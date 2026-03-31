@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 
-import { getSourceHealth } from "@/lib/app/appShellService.ts";
-import { createDataSource } from "@/lib/app/sourceFactory.ts";
-import type { StatusResponse } from "@/lib/contracts/api.ts";
+import { getSourceHealth } from "../../../lib/app/appShellService.ts";
+import { createDataSource } from "../../../lib/app/sourceFactory.ts";
+import {
+  hasValidStatusSession,
+  readStatusSessionFromCookieHeader,
+} from "../../../lib/app/statusAuth.ts";
+import type { StatusResponse } from "../../../lib/contracts/api.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +58,13 @@ function safeStatusResponse(value: unknown, fallbackCheckedAt: string): StatusRe
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const requestStartedAt = new Date().toISOString();
+  const session = readStatusSessionFromCookieHeader(request.headers.get("cookie"));
+  if (!hasValidStatusSession(session)) {
+    return NextResponse.json({ error: "Status access requires login." }, { status: 401 });
+  }
+
   try {
     const source = createDataSource();
     const status = await getSourceHealth(source);

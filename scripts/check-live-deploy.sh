@@ -154,28 +154,15 @@ run_root() {
 
 run_status() {
   parse_code "GET" "${BASE_URL}/api/status"
-  require "Status endpoint" "${status}"
-
-  if ! json_eval 'typeof json.healthy === "boolean"'; then
-    echo "FAIL: status payload did not include a boolean healthy field: ${response}" >&2
+  if [[ "${status}" != "401" ]]; then
+    echo "FAIL: Status endpoint should be protected and return 401 without login, got ${status}" >&2
     return 1
   fi
-  if ! json_eval 'json.healthy === true'; then
-    echo "FAIL: status payload reports unhealthy source: ${response}" >&2
+  if ! json_eval 'typeof json.error === "string" && json.error.includes("login")'; then
+    echo "FAIL: protected status endpoint did not return the expected unauthorized payload: ${response}" >&2
     return 1
   fi
-  if ! json_eval 'typeof json.checkedAt === "string" && json.checkedAt.length > 0'; then
-    echo "FAIL: status payload did not include checkedAt timestamp: ${response}" >&2
-    return 1
-  fi
-  if json_eval 'Array.isArray(json.warnings) && json.warnings.length > 0'; then
-    echo "WARN: status payload includes warnings: ${response}" >&2
-    if json_eval 'Array.isArray(json.warnings) && json.warnings.some((warning) => String(warning).includes("401"))'; then
-      echo "FAIL: status payload includes authorization warning from source probe." >&2
-      return 1
-    fi
-  fi
-  echo "PASS: status payload reports healthy query-path readiness"
+  echo "PASS: status endpoint is protected behind operator login"
 }
 
 run_query() {

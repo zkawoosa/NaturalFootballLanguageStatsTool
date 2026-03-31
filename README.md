@@ -29,8 +29,10 @@ That removes the old upstream auth and 5-requests-per-minute bottleneck.
 ## Supported API routes
 
 - `POST /api/query`
-- `GET /api/status`
+- `GET /api/status` (requires operator login session)
 - `GET /api/teams`
+- `POST /api/status-auth/login`
+- `POST /api/status-auth/logout`
 
 ## Data flow
 
@@ -78,6 +80,8 @@ NFLVERSE_SNAPSHOT_SEASON=2025
 NFL_LOG_TO_FILE=0
 NFL_CACHE_ENABLED=1
 NFL_CACHE_TTL_SECONDS=300
+NFL_STATUS_USERNAME=operator
+NFL_STATUS_PASSWORD=change-me
 NFL_SQLITE_PATH=data/nfl-query.sqlite
 ```
 
@@ -173,7 +177,9 @@ This removes deploy-time dependence on GitHub-hosted nflverse release assets. On
 
 ## Status semantics
 
-`GET /api/status` now reports whether the local nflverse snapshot is present and usable for stats queries.
+`GET /api/status` now reports whether the local nflverse snapshot is present and usable for stats queries, but it is no longer a public endpoint.
+
+Use the protected `/status/login` page to establish an operator session before checking status.
 
 If the snapshot is missing, status should be unhealthy and query responses should surface a snapshot-related source error.
 
@@ -189,7 +195,4 @@ GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLi
 
 ## Current roadmap leftovers
 
-- full manual QA pass
 - comparator lexicon expansion
-- UI overhaul
-- deploy smoke verification against the containerized nflverse snapshot flow

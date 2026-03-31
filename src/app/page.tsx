@@ -1,5 +1,6 @@
+import Link from "next/link";
+
 import { getSamplePrompts } from "@/lib/app/appShellService.ts";
-import { SourceHealthCard } from "./source-health-card.tsx";
 import { QueryWorkbench } from "./query-workbench.tsx";
 
 export default function HomePage() {
@@ -23,7 +24,26 @@ export default function HomePage() {
           </div>
         </div>
 
-        <SourceHealthCard />
+        <aside className="hero-side">
+          <section className="card hero-access-card">
+            <p className="section-kicker">Operator access</p>
+            <h2>Status checks are protected.</h2>
+            <p className="section-copy">
+              Snapshot health, cache behavior, and operator diagnostics now live behind a dedicated
+              login page instead of the public homepage.
+            </p>
+            <ul className="operator-list">
+              <li>Protected status page with session-based login</li>
+              <li>Public query interface stays open</li>
+              <li>Operational details remain internal</li>
+            </ul>
+            <div className="operator-actions">
+              <Link href="/status/login" className="button-primary link-button">
+                Open status login
+              </Link>
+            </div>
+          </section>
+        </aside>
       </section>
 
       <section className="card workbench-section">
