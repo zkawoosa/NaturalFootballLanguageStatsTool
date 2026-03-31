@@ -80,6 +80,16 @@ function toDisplayValue(value: unknown): string {
   return String(value);
 }
 
+function formatLabel(value: unknown): string {
+  if (typeof value !== "string") return toDisplayValue(value);
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\btd\b/gi, "TD")
+    .replace(/\bid\b/gi, "ID")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 function resultKey(item: Record<string, unknown>, index: number): string {
   const id = item.id;
   if (typeof id === "string" || typeof id === "number") {
@@ -105,18 +115,45 @@ function ResultField({ label, value }: { label: string; value: unknown }) {
   );
 }
 
+function ResultStatHeader({
+  kicker,
+  title,
+  subtitle,
+  value,
+}: {
+  kicker: string;
+  title: string;
+  subtitle?: string;
+  value?: unknown;
+}) {
+  return (
+    <header className="result-card-header">
+      <div>
+        <p className="result-card-kicker">{kicker}</p>
+        <p className="result-card-title">{title}</p>
+        {subtitle ? <p className="result-card-subtitle">{subtitle}</p> : null}
+      </div>
+      {!isDisplayEmpty(value) ? <p className="result-card-value">{toDisplayValue(value)}</p> : null}
+    </header>
+  );
+}
+
 function ResultCard({ item, index }: { item: Record<string, unknown>; index: number }) {
   const type = typeof item.type === "string" ? item.type : "";
+  const statLabel = formatLabel(item.stat);
 
   if (type === "player_stat") {
     return (
       <article className="result-card">
-        <p className="result-card-title">Player Stat</p>
+        <ResultStatHeader
+          kicker="Player stat"
+          title={`Player ${toDisplayValue(item.playerId)}`}
+          subtitle={[toDisplayValue(item.teamId), statLabel].filter(Boolean).join(" • ")}
+          value={item.value}
+        />
         <dl className="result-grid">
           <ResultField label="Player ID" value={item.playerId} />
           <ResultField label="Team ID" value={item.teamId} />
-          <ResultField label="Stat" value={item.stat} />
-          <ResultField label="Value" value={item.value} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
         </dl>
@@ -127,12 +164,14 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
   if (type === "team_stat") {
     return (
       <article className="result-card">
-        <p className="result-card-title">Team Stat</p>
+        <ResultStatHeader
+          kicker="Team stat"
+          title={toDisplayValue(item.team) || `Team ${toDisplayValue(item.teamId)}`}
+          subtitle={[toDisplayValue(item.teamId), statLabel].filter(Boolean).join(" • ")}
+          value={item.value}
+        />
         <dl className="result-grid">
-          <ResultField label="Team" value={item.team} />
           <ResultField label="Team ID" value={item.teamId} />
-          <ResultField label="Stat" value={item.stat} />
-          <ResultField label="Value" value={item.value} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
         </dl>
@@ -143,11 +182,13 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
   if (type === "compare_team") {
     return (
       <article className="result-card">
-        <p className="result-card-title">Team Comparison</p>
+        <ResultStatHeader
+          kicker="Team comparison"
+          title={toDisplayValue(item.team)}
+          subtitle={statLabel}
+          value={item.value}
+        />
         <dl className="result-grid">
-          <ResultField label="Team" value={item.team} />
-          <ResultField label="Stat" value={item.stat} />
-          <ResultField label="Value" value={item.value} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
         </dl>
@@ -158,11 +199,13 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
   if (type === "compare_player") {
     return (
       <article className="result-card">
-        <p className="result-card-title">Player Comparison</p>
+        <ResultStatHeader
+          kicker="Player comparison"
+          title={toDisplayValue(item.player)}
+          subtitle={statLabel}
+          value={item.value}
+        />
         <dl className="result-grid">
-          <ResultField label="Player" value={item.player} />
-          <ResultField label="Stat" value={item.stat} />
-          <ResultField label="Value" value={item.value} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
         </dl>
@@ -178,14 +221,16 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
     const scoreline =
       homeScore || awayScore
         ? `${awayTeam} ${awayScore || "-"} @ ${homeTeam} ${homeScore || "-"}`
-        : null;
+        : `${awayTeam} @ ${homeTeam}`;
 
     return (
       <article className="result-card">
-        <p className="result-card-title">Game Summary</p>
-        {scoreline ? <p className="scoreline">{scoreline}</p> : null}
+        <ResultStatHeader
+          kicker="Game summary"
+          title={scoreline}
+          subtitle={toDisplayValue(item.status)}
+        />
         <dl className="result-grid">
-          <ResultField label="Status" value={item.status} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
           <ResultField label="Game ID" value={item.id} />
@@ -196,9 +241,21 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
 
   return (
     <article className="result-card result-fallback">
-      <p className="result-card-title">Result {index + 1}</p>
+      <ResultStatHeader kicker="Raw result" title={`Result ${index + 1}`} />
       <pre>{prettyJson(item)}</pre>
     </article>
+  );
+}
+
+function ResponseMeta({ response }: { response: QueryResponse }) {
+  return (
+    <div className="response-meta">
+      <span className="meta-pill">Intent: {formatLabel(response.intent)}</span>
+      <span className="meta-pill">Source: {response.dataSource ?? "nflverse"}</span>
+      {response.dataStale ? (
+        <span className="meta-pill meta-pill-warning">Cached fallback</span>
+      ) : null}
+    </div>
   );
 }
 
@@ -302,74 +359,88 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
   const canSubmit = query.trim().length > 0 && !isLoading;
 
   return (
-    <div className="query-workbench">
-      <form className="query-form" onSubmit={onSubmit}>
-        <label htmlFor="query">Ask a question</label>
-        <p id="query-help" className="form-help">
-          Press Enter to run, / to focus input, and Esc to clear input.
-        </p>
-        <input
-          ref={queryInputRef}
-          id="query"
-          type="text"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Who had the most passing yards in week 7?"
-          aria-describedby="query-help"
-          autoComplete="off"
-        />
-        <div className="query-actions">
-          <button type="submit" disabled={!canSubmit}>
-            {isLoading ? "Running..." : "Search"}
-          </button>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={() => {
-              setQuery("");
-              setState({ status: "idle" });
-            }}
-            disabled={isLoading}
-          >
-            Clear
-          </button>
-        </div>
-      </form>
+    <div className="query-layout">
+      <div className="query-sidebar">
+        <form className="query-form" onSubmit={onSubmit}>
+          <div className="field-heading">
+            <label htmlFor="query">Ask a question</label>
+            <p id="query-help" className="form-help">
+              Enter runs the search. `/` focuses the input. `Esc` clears it.
+            </p>
+          </div>
+          <input
+            ref={queryInputRef}
+            id="query"
+            className="query-input"
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Who had the most passing yards in week 7?"
+            aria-describedby="query-help"
+            autoComplete="off"
+          />
+          <div className="query-actions">
+            <button type="submit" className="button-primary" disabled={!canSubmit}>
+              {isLoading ? "Running..." : "Run query"}
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => {
+                setQuery("");
+                setState({ status: "idle" });
+              }}
+              disabled={isLoading}
+            >
+              Reset
+            </button>
+          </div>
+        </form>
 
-      <div className="chip-row">
-        {samplePrompts.map((prompt) => (
-          <button
-            key={prompt}
-            type="button"
-            className="chip"
-            onClick={() => void runQuery(prompt)}
-            disabled={isLoading}
-            aria-label={`Run sample query: ${prompt}`}
-          >
-            {prompt}
-          </button>
-        ))}
-      </div>
-
-      {recentQueries.length > 0 ? (
-        <div className="recent-queries">
-          <h3>Recent queries</h3>
+        <section className="query-bank">
+          <div className="stack-heading">
+            <p className="section-kicker">Prompt bank</p>
+            <h3>Start from a working query</h3>
+          </div>
           <div className="chip-row">
-            {recentQueries.map((item) => (
+            {samplePrompts.map((prompt) => (
               <button
-                key={item}
+                key={prompt}
                 type="button"
-                className="chip chip-recent"
-                onClick={() => void runQuery(item)}
+                className="chip"
+                onClick={() => void runQuery(prompt)}
                 disabled={isLoading}
-                aria-label={`Run recent query: ${item}`}
+                aria-label={`Run sample query: ${prompt}`}
               >
-                {item}
+                {prompt}
               </button>
             ))}
           </div>
-        </div>
-      ) : null}
+        </section>
+
+        {recentQueries.length > 0 ? (
+          <section className="query-bank recent-queries">
+            <div className="stack-heading">
+              <p className="section-kicker">History</p>
+              <h3>Recent queries</h3>
+            </div>
+            <div className="chip-row">
+              {recentQueries.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="chip chip-recent"
+                  onClick={() => void runQuery(item)}
+                  disabled={isLoading}
+                  aria-label={`Run recent query: ${item}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <section
         className="response-panel"
@@ -379,13 +450,27 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
         aria-atomic="true"
       >
         {state.status === "idle" ? (
-          <p className="muted">Submit a query to see normalized API results.</p>
+          <div className="state-empty">
+            <p className="state-title">Ready for a query</p>
+            <p className="muted">
+              Run a question to inspect normalized results, clarification prompts, and
+              snapshot-backed NFL stats.
+            </p>
+          </div>
         ) : null}
 
-        {state.status === "loading" ? <p className="state-loading">Running query...</p> : null}
+        {state.status === "loading" ? (
+          <div className="state-loading">
+            <p className="state-title">Running query</p>
+            <p className="muted">
+              Parsing intent, applying follow-up context, and reading the snapshot.
+            </p>
+          </div>
+        ) : null}
 
         {state.status === "request_error" ? (
           <div className="state-error">
+            <p className="state-title">Request failed</p>
             <p>{state.message}</p>
           </div>
         ) : null}
@@ -422,9 +507,10 @@ function LoadedQueryState({
   if (response.needsClarification) {
     return (
       <div className="state-clarification">
+        <ResponseMeta response={response} />
         <p className="state-title">{isUnsupported ? "Unsupported query" : "Needs clarification"}</p>
         <p>{response.clarificationPrompt}</p>
-        {response.summary ? <p className="muted">{response.summary}</p> : null}
+        {response.summary ? <p className="muted response-copy">{response.summary}</p> : null}
         {response.alternatives.length > 0 ? (
           <div className="chip-row">
             {response.alternatives.map((option) => (
@@ -447,10 +533,11 @@ function LoadedQueryState({
   if (isSourceFailure) {
     return (
       <div className="state-error">
+        <ResponseMeta response={response} />
         <p className="state-title">Source issue</p>
         <p>{response.summary || "Data source is temporarily unavailable. Please try again."}</p>
         {(response as { sourceErrorMessage?: string }).sourceErrorMessage ? (
-          <p className="muted">
+          <p className="muted response-copy">
             {(response as { sourceErrorMessage?: string }).sourceErrorMessage}
           </p>
         ) : null}
@@ -461,8 +548,9 @@ function LoadedQueryState({
   if (response.dataStale) {
     return (
       <div className="state-warning">
+        <ResponseMeta response={response} />
         <p className="state-title">Using cached results</p>
-        <p className="muted">
+        <p className="muted response-copy">
           Source data could not be refreshed, so these results may be slightly stale.
         </p>
         <p>{response.summary || "No matching records were found."}</p>
@@ -480,6 +568,7 @@ function LoadedQueryState({
   if (response.results.length === 0) {
     return (
       <div className="state-empty">
+        <ResponseMeta response={response} />
         <p className="state-title">No matching records</p>
         <p>{response.summary || "No matching records were found."}</p>
       </div>
@@ -488,6 +577,7 @@ function LoadedQueryState({
 
   return (
     <div className="state-success">
+      <ResponseMeta response={response} />
       <p className="state-title">Results</p>
       <p>{response.summary}</p>
       <div className="result-list">

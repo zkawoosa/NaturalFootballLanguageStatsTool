@@ -141,7 +141,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 
 ### Long Term Tasks
 - [X] Separate upstream/source failures from clarification in the UI so temporary data issues do not render as "Needs clarification".
-- [ ] UI overhaul: redesign the website for a stronger production-quality visual system and layout.
+- [X] UI overhaul: redesign the website for a stronger production-quality visual system and layout.
 
 ## Residual Risks (living section)
 - Last updated: 2026-03-26
