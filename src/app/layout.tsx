@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
-import { ThemeToggle } from "./theme-toggle.tsx";
+import { AppMenu } from "./app-menu.tsx";
 import "./globals.css";
 
 const displayFont = Space_Grotesk({
@@ -40,7 +40,7 @@ export default function RootLayout({
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <body className={`${displayFont.variable} ${monoFont.variable}`}>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
-        <ThemeToggle />
+        <AppMenu />
         {children}
       </body>
     </html>

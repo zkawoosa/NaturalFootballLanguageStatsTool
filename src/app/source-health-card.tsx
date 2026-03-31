@@ -19,6 +19,20 @@ type StatusResponse = {
   warnings?: string[];
 };
 
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .format(new Date(value))
+    .replace(",", "");
+}
+
 export function SourceHealthCard() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,7 +103,7 @@ export function SourceHealthCard() {
           <dl className="status-grid">
             <div>
               <dt>Checked</dt>
-              <dd>{new Date(status.checkedAt).toLocaleString()}</dd>
+              <dd>{formatDateTime(status.checkedAt)}</dd>
             </div>
             <div>
               <dt>Latency</dt>

@@ -72,7 +72,7 @@ function isDisplayEmpty(value: unknown): boolean {
 
 function toDisplayValue(value: unknown): string {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+    return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
   }
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -143,7 +143,7 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
   const statLabel = formatLabel(item.stat);
 
   if (type === "player_stat") {
-    const playerName = toDisplayValue(item.playerName) || `Player ${toDisplayValue(item.playerId)}`;
+    const playerName = toDisplayValue(item.playerName) || "Unknown player";
     const teamLabel = toDisplayValue(item.teamName) || toDisplayValue(item.teamId);
 
     return (
@@ -155,9 +155,7 @@ function ResultCard({ item, index }: { item: Record<string, unknown>; index: num
           value={item.value}
         />
         <dl className="result-grid">
-          <ResultField label="Player" value={item.playerName} />
           <ResultField label="Team" value={item.teamName} />
-          <ResultField label="Player ID" value={item.playerId} />
           <ResultField label="Team ID" value={item.teamId} />
           <ResultField label="Season" value={item.season} />
           <ResultField label="Week" value={item.week} />
