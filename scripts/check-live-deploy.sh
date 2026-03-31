@@ -252,7 +252,7 @@ run_invalid_context() {
     echo "FAIL: malformed follow-up context should return HTTP 400, got ${status}: ${response}" >&2
     return 1
   fi
-  if ! json_eval 'json.errorCode === "INVALID_CONTEXT"'; then
+  if ! json_eval 'json.code === "INVALID_CONTEXT"'; then
     echo "FAIL: malformed context response missing INVALID_CONTEXT code: ${response}" >&2
     return 1
   fi
