@@ -267,7 +267,7 @@ async function buildQueryResponse(
       alternatives: dataResponse.alternatives,
       needsClarification: false,
       dataStale,
-      dataSource: "public",
+      dataSource: "nflverse",
     };
   } catch (error) {
     const isRateLimited = error instanceof NflSourceError && error.code === "RATE_LIMIT";
@@ -286,7 +286,7 @@ async function buildQueryResponse(
       alternatives: [],
       needsClarification: false,
       dataStale: false,
-      dataSource: "public",
+      dataSource: "nflverse",
       sourceError: true,
       errorCode,
       sourceErrorMessage: sourceError?.message,
@@ -506,6 +506,7 @@ async function hydratePlayerStatResults(
       season: parsed.slots.season,
       week: parsed.slots.week,
       seasonType: parsed.slots.seasonType,
+      team: parsed.slots.teams[0],
       playerSearch,
       search: playerSearch,
     })
@@ -697,26 +698,50 @@ function applyQueryContext(
     },
   };
 
-  if (merged.resolution !== "clarify" || merged.intent === "unknown") {
-    return merged;
+  const contextualIntent =
+    merged.intent === "unknown"
+      ? merged.slots.players.length > 0 && merged.slots.stat
+        ? "player_stat"
+        : merged.slots.teams.length >= 2 && merged.slots.stat
+          ? "compare"
+          : merged.slots.stat
+            ? "leaders"
+            : merged.intent
+      : merged.intent;
+
+  const contextualized =
+    contextualIntent === merged.intent
+      ? merged
+      : {
+          ...merged,
+          intent: contextualIntent,
+        };
+
+  if (contextualized.resolution !== "clarify" && contextualIntent === merged.intent) {
+    return contextualized;
   }
 
-  const hasStat = typeof merged.slots.stat === "string" && merged.slots.stat.length > 0;
-  const hasCompareSubjects = merged.slots.teams.length >= 2 || merged.slots.players.length >= 2;
+  const hasStat =
+    typeof contextualized.slots.stat === "string" && contextualized.slots.stat.length > 0;
+  const hasCompareSubjects =
+    contextualized.slots.teams.length >= 2 || contextualized.slots.players.length >= 2;
   const canAnswer =
-    merged.intent === "team_stat" || merged.intent === "player_stat" || merged.intent === "leaders"
+    contextualized.intent === "team_stat" ||
+    contextualized.intent === "player_stat" ||
+    contextualized.intent === "leaders"
       ? hasStat
-      : merged.intent === "compare"
+      : contextualized.intent === "compare"
         ? hasStat && hasCompareSubjects
-        : merged.intent === "weekly_summary";
+        : contextualized.intent === "weekly_summary";
 
   if (!canAnswer) {
-    return merged;
+    return contextualized;
   }
 
   return {
-    ...merged,
+    ...contextualized,
     resolution: "answer",
+    requiresClarification: false,
     clarification: null,
   };
 }

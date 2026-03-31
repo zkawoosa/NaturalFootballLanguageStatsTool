@@ -62,7 +62,7 @@ test("POST /api/query returns structured response for valid input", async () => 
   assert.equal(response.status, 200);
   assert.equal(body.intent, "leaders");
   assert.equal(body.needsClarification, false);
-  assert.equal(body.dataSource, "public");
+  assert.equal(body.dataSource, "nflverse");
   assert.equal(Array.isArray(body.results), true);
   assert.equal(body.summary, "Found 1 player stat result.");
   assert.equal(getPlayerStatsCalls, 1);
@@ -248,7 +248,7 @@ test("POST /api/query returns empty success state when adapter finds no rows", a
   assert.equal(response.status, 200);
   assert.equal(body.intent, "team_stat");
   assert.equal(body.needsClarification, false);
-  assert.equal(body.dataSource, "public");
+  assert.equal(body.dataSource, "nflverse");
   assert.equal(Array.isArray(body.results), true);
   assert.equal((body.results as Array<Record<string, unknown>>).length, 0);
   assert.equal(body.summary, "No matching records were found.");

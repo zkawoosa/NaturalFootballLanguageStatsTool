@@ -670,9 +670,38 @@ export class PublicNflSource implements IDataSource {
 
     const team = resolveTeam(query.team);
     const search = (query.playerSearch ?? query.search)?.trim().toLowerCase();
-    const playerIds = (query.playerIds ?? []).map((value) => value.trim()).filter(Boolean);
+    const playerIds = Array.from(
+      new Set((query.playerIds ?? []).map((value) => value.trim()).filter(Boolean))
+    );
     const seasonType = normalizeSeasonType(query.seasonType);
     const db = this.databaseProvider();
+    const resolvedPlayerIds =
+      search && playerIds.length === 0
+        ? (
+            db
+              .prepare(
+                `
+                SELECT DISTINCT player_id
+                FROM snapshot_players
+                WHERE season = ?
+                  AND (
+                    lower(full_name) LIKE ?
+                    OR lower(first_name) LIKE ?
+                    OR lower(last_name) LIKE ?
+                  )
+                  ${team ? "AND team_id = ?" : ""}
+              `
+              )
+              .all(
+                season,
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`,
+                ...(team ? [team.id] : [])
+              ) as Array<{ player_id: string }>
+          ).map((row) => row.player_id)
+        : [];
+    const filteredPlayerIds = Array.from(new Set([...playerIds, ...resolvedPlayerIds]));
 
     const where = ["season = ?"];
     const params: Array<string | number> = [season];
@@ -692,14 +721,14 @@ export class PublicNflSource implements IDataSource {
       params.push(team.id);
     }
 
-    if (search) {
+    if (search && filteredPlayerIds.length === 0) {
       where.push("lower(player_name) LIKE ?");
       params.push(`%${search}%`);
     }
 
-    if (playerIds.length > 0) {
-      where.push(`player_id IN (${playerIds.map(() => "?").join(", ")})`);
-      params.push(...playerIds);
+    if (filteredPlayerIds.length > 0) {
+      where.push(`player_id IN (${filteredPlayerIds.map(() => "?").join(", ")})`);
+      params.push(...filteredPlayerIds);
     }
 
     const weeklyRows = db

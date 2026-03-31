@@ -112,7 +112,12 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
   - Corpus rerun is now scripted in `scripts/evaluate-parser-corpus.mjs`.
   - Delta vs 2026-03-19 snapshot after parser fixes + corpus expectation audit: `intent:leaders` 7 -> 0, `scopeType:career` 7 -> 0, `sort:desc` 4 -> 0, `state:clarification` 4 -> 0, `state:error` 3 -> 0.
   - Unsupported-state audit updated stale corpus rows that still expected `clarification` for explicitly unsupported queries, and the corpus now evaluates cleanly.
-- [ ] Run full manual QA pass on corpus.
+- [X] Run full manual QA pass on corpus.
+- [X] Fix named-player stat lookups by resolving snapshot roster identities before querying abbreviated stat rows.
+- [X] Fix team-scoped follow-up context so carried team/stat/season context constrains leader queries.
+- [X] Route matchup-summary phrasing to weekly summary instead of compare when no stat is requested.
+- [X] Rename query response source labeling and refresh stale nflverse/UI copy.
+- [X] Add an app icon so page loads no longer emit `/favicon.ico` 404 noise.
 - [X] Prepare deploy config.
 - [X] Prepare README.
 - [X] Add stale cache fallback for source failures and expose `dataStale` indicators in query responses.
@@ -129,7 +134,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Pin validation/runtime docs to Node 24 + npm 11.
 - [X] Extend CI to rebuild the nflverse snapshot from a clean checkout and verify SQLite schema/metadata before tests and app build.
 - [X] Add a Docker-based deploy path so the verified sqlite snapshot is baked into the deploy artifact instead of rebuilt on the host.
-- [ ] Deploy preview, smoke test, record known limitations.
+- [X] Deploy preview, smoke test, record known limitations.
   - Current deploy blockers addressed in code:
     - Next.js route modules cannot export test helpers, so `/api/query` test injection was moved out of `src/app/api/query/route.ts` into a separate helper module.
     - The repo uses explicit `.ts` import specifiers for the Node ESM test/runtime flow, so `tsconfig.json` now enables `allowImportingTsExtensions` for `next build` compatibility.

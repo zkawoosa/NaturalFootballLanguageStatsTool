@@ -9,7 +9,7 @@ export default function HomePage() {
     <main className="container">
       <header className="page-header">
         <h1>NFL Query</h1>
-        <p>Natural-language NFL stats app shell wired to IDataSource.</p>
+        <p>Natural-language NFL stats app backed by nflverse snapshot data in SQLite.</p>
       </header>
 
       <SourceHealthCard />

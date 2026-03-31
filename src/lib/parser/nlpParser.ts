@@ -422,6 +422,10 @@ function collectEntities(
 }
 
 function detectIntent(value: string, slots: QuerySlot): NflIntent {
+  if (isWeeklySummaryCue(value) && slots.players.length === 0 && !slots.stat) {
+    return "weekly_summary";
+  }
+
   if (/\bcompare\b/.test(value) || /\bvs\b/.test(value) || /\bversus\b/.test(value)) {
     return "compare";
   }
@@ -440,15 +444,6 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
 
   if (/\bplayer\s+stats?\b/.test(value)) {
     return "player_stat";
-  }
-
-  if (
-    isWeeklySummaryCue(value) &&
-    slots.teams.length === 0 &&
-    slots.players.length === 0 &&
-    !slots.stat
-  ) {
-    return "weekly_summary";
   }
 
   if (/\bleaders\b/.test(value) || /\bleaderboard\b/.test(value) || /\btop\s+\d*/.test(value)) {
@@ -494,14 +489,6 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
   if (slots.teams.length > 1) return "compare";
   if (slots.teams.length > 0) return "team_stat";
   if (slots.players.length > 0) return "player_stat";
-  if (
-    isWeeklySummaryCue(value) &&
-    slots.teams.length === 0 &&
-    slots.players.length === 0 &&
-    !slots.stat
-  ) {
-    return "weekly_summary";
-  }
   if (slots.stat && hasResolvableScopeCue(value, slots)) {
     return "leaders";
   }

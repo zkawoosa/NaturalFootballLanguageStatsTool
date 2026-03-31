@@ -33,14 +33,14 @@ type QueryResponseBase = {
 
 export type QuerySuccessResponse = QueryResponseBase & {
   needsClarification: false;
-  dataSource: "public";
+  dataSource: "nflverse";
   clarificationPrompt?: undefined;
 };
 
 export type QuerySourceErrorResponse = QueryResponseBase & {
   needsClarification: false;
   sourceError: true;
-  dataSource: "public";
+  dataSource: "nflverse";
   errorCode:
     | "RATE_LIMIT"
     | "SOURCE_UNAVAILABLE"
@@ -58,14 +58,14 @@ export type QuerySourceErrorResponse = QueryResponseBase & {
 export type QueryClarificationResponse = QueryResponseBase & {
   needsClarification: true;
   clarificationPrompt: string;
-  dataSource?: "public";
+  dataSource?: "nflverse";
 };
 
 export type QueryErrorResponse = QueryResponseBase & {
   needsClarification: true;
   clarificationPrompt: string;
   intent: "unknown";
-  dataSource?: "public";
+  dataSource?: "nflverse";
 };
 
 export type QueryResponse =

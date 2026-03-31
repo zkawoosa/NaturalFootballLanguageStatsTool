@@ -46,7 +46,7 @@ export function SourceHealthCard() {
   return (
     <section className="card">
       <h2>Source Health</h2>
-      <p>Check query-path health on demand to avoid consuming upstream quota during page load.</p>
+      <p>Check snapshot freshness and query-path health on demand.</p>
       <button type="button" onClick={handleCheckHealth} disabled={loading}>
         {loading ? "Checking..." : "Check source health"}
       </button>
