@@ -99,6 +99,13 @@ const PARSER_ROUTE = "parser:nlp";
 const PARSER_SOURCE = "parser";
 
 const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
+  { cue: "ascending order", direction: "asc" },
+  { cue: "ordered ascending", direction: "asc" },
+  { cue: "sorted ascending", direction: "asc" },
+  { cue: "ranked lowest", direction: "asc" },
+  { cue: "ranked worst", direction: "asc" },
+  { cue: "trailing", direction: "asc" },
+  { cue: "lagging", direction: "asc" },
   { cue: "ascending", direction: "asc" },
   { cue: "asc", direction: "asc" },
   { cue: "worst", direction: "asc" },
@@ -108,6 +115,12 @@ const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
   { cue: "bottom", direction: "asc" },
   { cue: "last", direction: "asc" },
   { cue: "smallest", direction: "asc" },
+  { cue: "descending order", direction: "desc" },
+  { cue: "ordered descending", direction: "desc" },
+  { cue: "sorted descending", direction: "desc" },
+  { cue: "ranked highest", direction: "desc" },
+  { cue: "ranked best", direction: "desc" },
+  { cue: "leading", direction: "desc" },
   { cue: "descending", direction: "desc" },
   { cue: "desc", direction: "desc" },
   { cue: "top", direction: "desc" },
@@ -119,14 +132,7 @@ const COMPARATOR_LEXICON: ComparatorLexiconEntry[] = [
   { cue: "longest", direction: "desc" },
 ];
 
-const UNKNOWN_COMPARATOR_CUES = [
-  "leading",
-  "trailing",
-  "ordered by",
-  "sort by",
-  "ranked by",
-  "ranking by",
-];
+const UNKNOWN_COMPARATOR_CUES = ["ordered by", "sort by", "ranked by", "ranking by"];
 const CAREER_SCOPE_CUES = /\b(all\s+time|career|ever|historical|history)\b/i;
 const SINCE_YEAR_CAREER_SCOPE_RE = /\bsince\s+(\d{4})\b/i;
 const PER_SEASON_SINCE_YEAR_RE = /\bper\s+season\s+since\s+\d{4}\b/i;
@@ -159,6 +165,7 @@ const NON_ALIAS_QUERY_TERMS = new Set([
   "score",
   "scores",
   "schedule",
+  "sorted",
   "matchup",
   "matchups",
   "recap",
@@ -196,9 +203,12 @@ const NON_ALIAS_QUERY_TERMS = new Set([
   "preseason",
   "offseason",
   "rank",
+  "ranked",
   "ranking",
   "ordered",
   "sort",
+  "trailing",
+  "lagging",
   "by",
 ]);
 

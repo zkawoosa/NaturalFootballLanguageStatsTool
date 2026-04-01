@@ -127,7 +127,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Address external review findings: clarification context wiring, season aggregation, pagination completeness, and truncation safeguards.
 - [X] Separate source failures from clarification so unsupported upstream failures show as a distinct state in API responses and UI.
 - [X] Add source-health regression test that verifies probes call the uncached freshness path (`getTeamsFresh`) instead of the cached path.
-- [ ] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
+- [X] Expand comparator lexicon and add phrase-level regression tests for uncommon ranking phrasing.
 - [X] Add GitHub Actions CI for format, lint, tests, and build.
 - [X] Replace the live upstream stats dependency with a build-time nflverse SQLite snapshot flow.
 - [X] Migrate SQLite runtime access to `better-sqlite3`.
@@ -147,13 +147,13 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add default dark mode with a light-mode toggle while preserving the current layout.
 
 ## Residual Risks (living section)
-- Last updated: 2026-03-26
+- Last updated: 2026-03-31
 - [X] Alias coverage baseline expanded to 32 teams and >=500 players, and broad false-positive team tokens (`bay`, `las`, `new`, `city`) were removed.
   - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
 - [X] Unsupported-domain and unsupported-scope queries now resolve to an explicit unsupported state instead of falling through clarification.
   - Next mitigation: expand unsupported-domain cue coverage as the corpus grows.
-- [ ] Comparator parsing is still keyword-based, so uncommon ranking phrasing may map to incorrect sort direction.
-  - Next mitigation: expand comparator lexicon and add phrase-level regression tests.
+- [X] Comparator lexicon now covers leading/trailing and ranked highest/lowest phrasing with parser regressions.
+  - Next mitigation: keep expanding the corpus as new real-world phrasings show up.
 - [ ] Snapshot freshness depends on the last successful `npm run build:snapshot`, so stale deploy artifacts can lag nflverse updates.
   - Next mitigation: keep deploy smoke checks pointed at the built season and rebuild container images on a schedule.
 

@@ -3,7 +3,6 @@ import type { IDataSource } from "../data/publicNflSource.ts";
 
 const SAMPLE_PROMPTS = [
   "Who has the most passing yards in week 7?",
-  "Team stats for Chiefs this season",
   "Compare Bills and Dolphins rushing yards this week",
 ];
 

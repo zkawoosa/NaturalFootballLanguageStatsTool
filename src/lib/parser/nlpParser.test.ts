@@ -206,14 +206,44 @@ test("parses compact wk token for team stat queries", () => {
   assert.equal(result.resolution, "answer");
 });
 
-test("captures unknown comparator telemetry cue when comparator is unrecognized", () => {
+test("parses leading phrasing as descending leaderboard sort", () => {
   const result = parseNflQuery("Leading passing yards this season");
 
   assert.equal(result.intent, "leaders");
   assert.equal(result.slots.stat, "passingYards");
-  assert.equal(result.slots.sort, null);
-  assert.equal(result.telemetry.unknownComparatorCue, "leading");
-  assert.equal(result.telemetry.matchedComparatorCue, null);
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
+  assert.equal(result.telemetry.matchedComparatorCue, "leading");
+});
+
+test("parses trailing phrasing as ascending leaderboard sort", () => {
+  const result = parseNflQuery("Trailing passing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.equal(result.slots.sort, "asc");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
+  assert.equal(result.telemetry.matchedComparatorCue, "trailing");
+});
+
+test("parses ranked highest phrasing as descending leaderboard sort", () => {
+  const result = parseNflQuery("Teams ranked highest in rushing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "rushingYards");
+  assert.equal(result.slots.sort, "desc");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
+  assert.equal(result.telemetry.matchedComparatorCue, "ranked highest");
+});
+
+test("parses ranked lowest phrasing as ascending leaderboard sort", () => {
+  const result = parseNflQuery("Teams ranked lowest in rushing yards this season");
+
+  assert.equal(result.intent, "leaders");
+  assert.equal(result.slots.stat, "rushingYards");
+  assert.equal(result.slots.sort, "asc");
+  assert.equal(result.telemetry.unknownComparatorCue, null);
+  assert.equal(result.telemetry.matchedComparatorCue, "ranked lowest");
 });
 
 test("clarifies unsupported career scope queries", () => {
