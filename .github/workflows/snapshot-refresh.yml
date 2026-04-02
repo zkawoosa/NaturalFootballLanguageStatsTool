@@ -7,7 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   NFLVERSE_DEFAULT_SEASON: "2025"
   NFLVERSE_SNAPSHOT_SEASON: "2025"
 
@@ -36,14 +35,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Normalize image name
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Compute refresh image tags
         id: tags
         run: |
           refresh_tag="refresh-$(date -u +%Y%m%d)"
           {
             echo "tags<<EOF"
-            echo "${REGISTRY}/${IMAGE_NAME}:latest"
-            echo "${REGISTRY}/${IMAGE_NAME}:${refresh_tag}"
+            echo "${REGISTRY}/${{ steps.image.outputs.name }}:latest"
+            echo "${REGISTRY}/${{ steps.image.outputs.name }}:${refresh_tag}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
