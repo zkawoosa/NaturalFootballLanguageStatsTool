@@ -134,6 +134,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Pin validation/runtime docs to Node 24 + npm 11.
 - [X] Extend CI to rebuild the nflverse snapshot from a clean checkout and verify SQLite schema/metadata before tests and app build.
 - [X] Add a Docker-based deploy path so the verified sqlite snapshot is baked into the deploy artifact instead of rebuilt on the host.
+- [X] Add a scheduled GitHub Actions snapshot refresh pipeline that republishes the container image with a freshly verified snapshot.
 - [X] Deploy preview, smoke test, record known limitations.
 - [X] Move snapshot health checks behind an operator login page and protect `GET /api/status` with a session cookie.
   - Current deploy blockers addressed in code:
@@ -147,15 +148,15 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Add default dark mode with a light-mode toggle while preserving the current layout.
 
 ## Residual Risks (living section)
-- Last updated: 2026-03-31
+- Last updated: 2026-04-01
 - [X] Alias coverage baseline expanded to 32 teams and >=500 players, and broad false-positive team tokens (`bay`, `las`, `new`, `city`) were removed.
   - Next mitigation: add periodic alias-refresh generation so roster changes and new names stay current.
 - [X] Unsupported-domain and unsupported-scope queries now resolve to an explicit unsupported state instead of falling through clarification.
   - Next mitigation: expand unsupported-domain cue coverage as the corpus grows.
 - [X] Comparator lexicon now covers leading/trailing and ranked highest/lowest phrasing with parser regressions.
   - Next mitigation: keep expanding the corpus as new real-world phrasings show up.
-- [ ] Snapshot freshness depends on the last successful `npm run build:snapshot`, so stale deploy artifacts can lag nflverse updates.
-  - Next mitigation: keep deploy smoke checks pointed at the built season and rebuild container images on a schedule.
+- [ ] Snapshot freshness now depends on the scheduled refresh workflow succeeding and the host pulling the refreshed image, so stale deploys can still lag when refreshes fail or rollouts are delayed.
+  - Next mitigation: alert on workflow failures and automate rollout of refreshed images.
 
 ## Parser Corpus Bucket Tracker (snapshot 2026-03-20)
 - Evaluator: `node --experimental-strip-types scripts/evaluate-parser-corpus.mjs`

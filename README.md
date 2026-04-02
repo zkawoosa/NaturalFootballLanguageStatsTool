@@ -133,6 +133,7 @@ Recommended deploy shape:
 Current image workflow:
 
 - [docker-image.yml](/Users/zainkawoosa/nfl-query/.github/workflows/docker-image.yml) builds and pushes `ghcr.io/<owner>/<repo>:latest` and `ghcr.io/<owner>/<repo>:sha-<commit>`.
+- [snapshot-refresh.yml](/Users/zainkawoosa/nfl-query/.github/workflows/snapshot-refresh.yml) rebuilds the nflverse snapshot on a daily schedule and republishes `latest` plus a `refresh-YYYYMMDD` image tag.
 
 Current Docker build behavior:
 
@@ -175,6 +176,8 @@ For a Render image deploy:
 
 This removes deploy-time dependence on GitHub-hosted nflverse release assets. Only the image-build workflow needs that network access.
 
+If your host is pinned to `latest`, the scheduled refresh workflow keeps GHCR current. Your host still needs a redeploy or image refresh to start serving that newer image.
+
 ## Status semantics
 
 `GET /api/status` now reports whether the local nflverse snapshot is present and usable for stats queries, but it is no longer a public endpoint.
@@ -184,6 +187,8 @@ Use the protected `/status/login` page to establish an operator session before c
 If the snapshot is missing, status should be unhealthy and query responses should surface a snapshot-related source error.
 
 GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLite schema, metadata, and core row counts before lint, tests, and app build. A separate image workflow bakes that verified snapshot into the deploy artifact.
+
+The scheduled snapshot-refresh workflow uses the same Docker build path, so every refreshed image rebuilds and verifies the snapshot before publishing.
 
 ## Known limitations
 
@@ -195,4 +200,4 @@ GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLi
 
 ## Current roadmap leftovers
 
-- comparator lexicon expansion
+- no planned feature work remains; the remaining work is operational freshness monitoring and deploy automation.
