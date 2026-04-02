@@ -168,9 +168,9 @@ code {
   overflow: hidden;
   border-radius: 30px;
   display: grid;
-  gap: 18px;
+  gap: 20px;
   min-height: 320px;
-  align-content: space-between;
+  align-content: start;
   padding: clamp(32px, 5vw, 56px);
   color: #f7f4ed;
   background:
@@ -205,16 +205,15 @@ code {
 }
 
 .hero h1 {
-  max-width: 14ch;
+  max-width: none;
   margin-bottom: 0;
-  font-size: clamp(2.9rem, 6.6vw, 5.6rem);
-  line-height: 0.92;
+  font-size: clamp(2.7rem, 6vw, 5rem);
+  line-height: 0.96;
   letter-spacing: -0.06em;
-  text-wrap: balance;
 }
 
 .hero-intro {
-  max-width: 72ch;
+  max-width: 84ch;
   margin-bottom: 0;
   font-size: 1.08rem;
   line-height: 1.72;
@@ -841,7 +840,7 @@ code {
   }
 
   .hero h1 {
-    max-width: 11ch;
+    max-width: none;
     font-size: clamp(2.5rem, 12vw, 3.8rem);
   }
 
