@@ -57,3 +57,7 @@ jobs:
           build-args: |
             NFLVERSE_DEFAULT_SEASON=${{ env.NFLVERSE_DEFAULT_SEASON }}
             NFLVERSE_SNAPSHOT_SEASON=${{ env.NFLVERSE_SNAPSHOT_SEASON }}
+
+      - name: Trigger Render redeploy
+        if: success() && secrets.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl --fail --silent --show-error --request POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

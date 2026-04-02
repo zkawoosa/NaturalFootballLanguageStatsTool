@@ -134,6 +134,7 @@ Current image workflow:
 
 - [docker-image.yml](/Users/zainkawoosa/nfl-query/.github/workflows/docker-image.yml) builds and pushes `ghcr.io/<owner>/<repo>:latest` and `ghcr.io/<owner>/<repo>:sha-<commit>`.
 - [snapshot-refresh.yml](/Users/zainkawoosa/nfl-query/.github/workflows/snapshot-refresh.yml) rebuilds the nflverse snapshot on a daily schedule and republishes `latest` plus a `refresh-YYYYMMDD` image tag.
+- If you set `RENDER_DEPLOY_HOOK_URL` in GitHub Actions secrets, that same scheduled workflow will also trigger a Render redeploy after publishing the refreshed image.
 
 Current Docker build behavior:
 
@@ -176,7 +177,7 @@ For a Render image deploy:
 
 This removes deploy-time dependence on GitHub-hosted nflverse release assets. Only the image-build workflow needs that network access.
 
-If your host is pinned to `latest`, the scheduled refresh workflow keeps GHCR current. Your host still needs a redeploy or image refresh to start serving that newer image.
+If your host is pinned to `latest`, the scheduled refresh workflow keeps GHCR current. With `RENDER_DEPLOY_HOOK_URL` configured, the same workflow can also trigger the Render redeploy that pulls the refreshed image.
 
 ## Status semantics
 
@@ -189,6 +190,7 @@ If the snapshot is missing, status should be unhealthy and query responses shoul
 GitHub Actions rebuilds the snapshot from a clean checkout and verifies the SQLite schema, metadata, and core row counts before lint, tests, and app build. A separate image workflow bakes that verified snapshot into the deploy artifact.
 
 The scheduled snapshot-refresh workflow uses the same Docker build path, so every refreshed image rebuilds and verifies the snapshot before publishing.
+For Render free-tier image services, the deploy-hook call is the practical way to get scheduled rollouts because Render does not automatically redeploy when `latest` changes.
 
 ## Known limitations
 
