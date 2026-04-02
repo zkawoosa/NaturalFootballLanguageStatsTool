@@ -59,5 +59,12 @@ jobs:
             NFLVERSE_SNAPSHOT_SEASON=${{ env.NFLVERSE_SNAPSHOT_SEASON }}
 
       - name: Trigger Render redeploy
-        if: success() && secrets.RENDER_DEPLOY_HOOK_URL != ''
-        run: curl --fail --silent --show-error --request POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL is not configured; skipping Render redeploy."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}"
