@@ -3,6 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { SourceHealthCard } from "../source-health-card.tsx";
+import { QueryObservabilityPanel } from "./query-observability-panel.tsx";
+import { getSourceHealth } from "@/lib/app/appShellService.ts";
+import { createDataSource } from "@/lib/app/sourceFactory.ts";
 import {
   hasValidStatusSession,
   isStatusAuthConfigured,
@@ -10,8 +13,9 @@ import {
   STATUS_PAGE_PATH,
   STATUS_SESSION_COOKIE_NAME,
 } from "@/lib/app/statusAuth.ts";
+import { getQueryObservabilitySummary } from "@/lib/db/queryHistory.ts";
 
-export default function StatusPage() {
+export default async function StatusPage() {
   if (!isStatusAuthConfigured()) {
     redirect(`${STATUS_LOGIN_PATH}?error=disabled`);
   }
@@ -22,6 +26,12 @@ export default function StatusPage() {
       `${STATUS_LOGIN_PATH}?error=unauthorized&next=${encodeURIComponent(STATUS_PAGE_PATH)}`
     );
   }
+
+  const source = createDataSource();
+  const [status, observability] = await Promise.all([
+    getSourceHealth(source),
+    Promise.resolve(getQueryObservabilitySummary(24)),
+  ]);
 
   return (
     <main className="shell shell-narrow">
@@ -49,6 +59,7 @@ export default function StatusPage() {
         </p>
       </section>
 
+      <QueryObservabilityPanel observability={observability} cache={status.cache} />
       <SourceHealthCard />
     </main>
   );

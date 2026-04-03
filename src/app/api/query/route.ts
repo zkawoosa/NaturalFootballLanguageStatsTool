@@ -57,10 +57,11 @@ export async function POST(request: Request) {
   const query = body.query.trim();
   const parsedQuery = applyQueryContext(parseNflQuery(query), body.context);
   const service = getQueryStatsService();
+  const requestStartedAt = Date.now();
   const response = await withServiceRequestContext(service, () =>
     buildQueryResponse(parsedQuery, service)
   );
-  persistQueryHistory(query, response);
+  persistQueryHistory(query, response, Date.now() - requestStartedAt);
   return NextResponse.json(response, { status: 200 });
 }
 
@@ -213,7 +214,7 @@ async function withServiceRequestContext<T>(
   return operation();
 }
 
-function persistQueryHistory(query: string, response: QueryResponse): void {
+function persistQueryHistory(query: string, response: QueryResponse, latencyMs: number): void {
   try {
     appendQueryHistory({
       query,
@@ -225,6 +226,9 @@ function persistQueryHistory(query: string, response: QueryResponse): void {
         typeof response.sourceError === "boolean" &&
         response.sourceError === true,
       dataStale: response.dataStale ?? false,
+      latencyMs,
+      confidence: response.confidence,
+      resultCount: Array.isArray(response.results) ? response.results.length : 0,
     });
   } catch (error) {
     console.warn("Unable to persist query history.");

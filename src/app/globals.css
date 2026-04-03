@@ -258,6 +258,123 @@ code {
   border-top: 4px solid var(--accent);
 }
 
+.observability-panel {
+  margin-bottom: 20px;
+}
+
+.observability-window {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.observability-grid,
+.observability-detail-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.observability-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 18px;
+}
+
+.observability-detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 18px;
+}
+
+.observability-metric,
+.observability-list-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--result-bg-top), var(--result-bg-bottom));
+  padding: 18px;
+}
+
+.observability-metric {
+  display: grid;
+  gap: 8px;
+}
+
+.observability-label,
+.observability-note,
+.observability-list-card span,
+.observability-failure-list span {
+  color: var(--muted);
+}
+
+.observability-metric strong {
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.observability-note {
+  font-size: 0.88rem;
+}
+
+.observability-subheading {
+  margin-bottom: 12px;
+}
+
+.observability-subheading h3 {
+  margin-bottom: 0;
+}
+
+.observability-list,
+.observability-failure-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.observability-list li,
+.observability-failure-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.observability-list li + li,
+.observability-failure-list li + li {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.observability-query-list li span {
+  max-width: 80%;
+}
+
+.observability-list-card-wide {
+  grid-column: 1 / -1;
+}
+
+.observability-failure-list li {
+  align-items: flex-start;
+}
+
+.observability-failure-list p {
+  margin-bottom: 4px;
+}
+
+.observability-failure-list strong {
+  white-space: nowrap;
+  color: var(--result-value);
+}
+
+@media (max-width: 720px) {
+  .observability-grid,
+  .observability-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .status-card {
   display: flex;
   flex-direction: column;

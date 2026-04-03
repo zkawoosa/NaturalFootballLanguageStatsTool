@@ -13,6 +13,21 @@ function openDatabase(sqlitePath: string): Database.Database {
   return new Database(sqlitePath);
 }
 
+function ensureColumn(
+  db: SqliteDatabase,
+  tableName: string,
+  columnName: string,
+  columnDefinition: string
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+
+  if (columns.some((column) => column.name === columnName)) {
+    return;
+  }
+
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+}
+
 function isNodeTestRuntime(): boolean {
   return process.execArgv.includes("--test") || process.argv.includes("--test");
 }
@@ -138,6 +153,10 @@ export function initializeSqliteDatabase(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_snapshot_team_stats_lookup
       ON snapshot_team_stats (season, week, season_type, team_id);
   `);
+
+  ensureColumn(db, "query_history", "latency_ms", "INTEGER");
+  ensureColumn(db, "query_history", "confidence", "REAL");
+  ensureColumn(db, "query_history", "result_count", "INTEGER");
 }
 
 export function getSqliteDatabase(): SqliteDatabase {
