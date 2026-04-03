@@ -74,8 +74,8 @@ function assertRequiredTables(database) {
 
 function assertMetadata(database, expectedSeason) {
   const rows = database
-    .prepare("SELECT key, value FROM snapshot_metadata WHERE key IN (?, ?, ?)")
-    .all("snapshot_source", "snapshot_season", "snapshot_built_at");
+    .prepare("SELECT key, value FROM snapshot_metadata WHERE key IN (?, ?, ?, ?)")
+    .all("snapshot_source", "snapshot_season", "snapshot_built_at", "snapshot_version");
 
   const metadata = Object.fromEntries(rows.map((row) => [row.key, row.value]));
 
@@ -102,6 +102,10 @@ function assertMetadata(database, expectedSeason) {
 
   if (!metadata.snapshot_built_at) {
     throw new Error("snapshot_built_at metadata is missing.");
+  }
+
+  if (!metadata.snapshot_version) {
+    throw new Error("snapshot_version metadata is missing.");
   }
 
   return parsedSeason;

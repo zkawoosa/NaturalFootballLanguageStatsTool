@@ -9,6 +9,7 @@ import { initializeSqliteDatabase, resolveSqlitePath } from "../src/lib/db/sqlit
 const TEAM_BY_ID = new Map(NFL_TEAMS.map((team) => [team.id, team]));
 const TARGET_SEASON = resolveSeason(process.env.NFLVERSE_SNAPSHOT_SEASON);
 const SQLITE_PATH = resolveSqlitePath(process.env);
+const SNAPSHOT_ARCHIVE_DIR = path.join(path.dirname(SQLITE_PATH), "snapshots");
 
 if (SQLITE_PATH === ":memory:") {
   throw new Error("NFL_SQLITE_PATH must point to a file when building the nflverse snapshot.");
@@ -175,8 +176,43 @@ function clearSeasonData(season) {
   db.prepare("DELETE FROM snapshot_player_stats WHERE season = ?").run(season);
   db.prepare("DELETE FROM snapshot_team_stats WHERE season = ?").run(season);
   db.prepare(
-    "DELETE FROM snapshot_metadata WHERE key IN ('snapshot_source', 'snapshot_season', 'snapshot_built_at')"
+    "DELETE FROM snapshot_metadata WHERE key IN ('snapshot_source', 'snapshot_season', 'snapshot_built_at', 'snapshot_version', 'snapshot_previous_version')"
   ).run();
+}
+
+function readExistingSnapshotMetadata() {
+  const rows = db
+    .prepare(
+      `
+        SELECT key, value
+        FROM snapshot_metadata
+        WHERE key IN ('snapshot_source', 'snapshot_season', 'snapshot_built_at', 'snapshot_version')
+      `
+    )
+    .all();
+
+  const byKey = new Map(rows.map((row) => [row.key, row.value]));
+  return {
+    source: byKey.get("snapshot_source") ?? null,
+    season: byKey.get("snapshot_season") ?? null,
+    builtAt: byKey.get("snapshot_built_at") ?? null,
+    version: byKey.get("snapshot_version") ?? null,
+  };
+}
+
+function buildSnapshotVersion(season, builtAt) {
+  const compactTimestamp = builtAt.replace(/[^0-9TZ]/g, "");
+  return `${season}-${compactTimestamp}`;
+}
+
+function archiveSnapshotFile(sourcePath, version) {
+  if (!version || !fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  fs.mkdirSync(SNAPSHOT_ARCHIVE_DIR, { recursive: true });
+  const archivePath = path.join(SNAPSHOT_ARCHIVE_DIR, `nfl-query-${version}.sqlite`);
+  fs.copyFileSync(sourcePath, archivePath);
 }
 
 const insertGame = db.prepare(`
@@ -470,6 +506,11 @@ function addNullable(left, right) {
 }
 
 async function main() {
+  const previousSnapshot = readExistingSnapshotMetadata();
+  if (previousSnapshot.version) {
+    archiveSnapshotFile(SQLITE_PATH, previousSnapshot.version);
+  }
+
   clearSeasonData(TARGET_SEASON);
 
   const [gamesCsv, playersCsv, playerStatsCsv, teamStatsCsv] = await Promise.all([
@@ -490,11 +531,13 @@ async function main() {
   importPlayerStats(playerStatsCsv, TARGET_SEASON);
   importTeamStats(teamStatsCsv, TARGET_SEASON);
 
+  const builtAt = new Date().toISOString();
+  const snapshotVersion = buildSnapshotVersion(TARGET_SEASON, builtAt);
   const metadataTransaction = db.transaction(() => {
     db.prepare(
       `
         INSERT INTO snapshot_metadata (key, value)
-        VALUES (?, ?), (?, ?), (?, ?)
+        VALUES (?, ?), (?, ?), (?, ?), (?, ?), (?, ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
       `
     ).run(
@@ -503,14 +546,20 @@ async function main() {
       "snapshot_season",
       String(TARGET_SEASON),
       "snapshot_built_at",
-      new Date().toISOString()
+      builtAt,
+      "snapshot_version",
+      snapshotVersion,
+      "snapshot_previous_version",
+      previousSnapshot.version ?? ""
     );
   });
 
   metadataTransaction();
-  console.log(`Built nflverse snapshot for season ${TARGET_SEASON} at ${SQLITE_PATH}`);
+  db.close();
+  archiveSnapshotFile(SQLITE_PATH, snapshotVersion);
+  console.log(
+    `Built nflverse snapshot ${snapshotVersion} for season ${TARGET_SEASON} at ${SQLITE_PATH}`
+  );
 }
 
-main().finally(() => {
-  db.close();
-});
+main();

@@ -3,7 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { SourceHealthCard } from "../source-health-card.tsx";
+import { QueryExplainPanel } from "./query-explain-panel.tsx";
 import { QueryObservabilityPanel } from "./query-observability-panel.tsx";
+import { QueryReportsPanel } from "./query-reports-panel.tsx";
+import { SnapshotVersionPanel } from "./snapshot-version-panel.tsx";
 import { getSourceHealth } from "@/lib/app/appShellService.ts";
 import { createDataSource } from "@/lib/app/sourceFactory.ts";
 import {
@@ -14,6 +17,10 @@ import {
   STATUS_SESSION_COOKIE_NAME,
 } from "@/lib/app/statusAuth.ts";
 import { getQueryObservabilitySummary } from "@/lib/db/queryHistory.ts";
+import { listRecentQueryReports } from "@/lib/db/queryReports.ts";
+import { listSnapshotVersions } from "@/lib/db/snapshotVersions.ts";
+
+export const dynamic = "force-dynamic";
 
 export default async function StatusPage() {
   if (!isStatusAuthConfigured()) {
@@ -32,6 +39,8 @@ export default async function StatusPage() {
     getSourceHealth(source),
     Promise.resolve(getQueryObservabilitySummary(24)),
   ]);
+  const reports = listRecentQueryReports(10);
+  const snapshotVersions = listSnapshotVersions();
 
   return (
     <main className="shell shell-narrow">
@@ -60,6 +69,9 @@ export default async function StatusPage() {
       </section>
 
       <QueryObservabilityPanel observability={observability} cache={status.cache} />
+      <SnapshotVersionPanel versions={snapshotVersions} />
+      <QueryReportsPanel reports={reports} />
+      <QueryExplainPanel />
       <SourceHealthCard />
     </main>
   );

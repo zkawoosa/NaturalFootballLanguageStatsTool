@@ -66,6 +66,20 @@ export function initializeSqliteDatabase(db: SqliteDatabase): void {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS query_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      query TEXT NOT NULL,
+      request_body TEXT NOT NULL,
+      response_payload TEXT NOT NULL,
+      parser_trace TEXT NOT NULL,
+      report_note TEXT,
+      review_status TEXT NOT NULL DEFAULT 'open',
+      snapshot_version TEXT,
+      snapshot_built_at TEXT,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS snapshot_players (
       season INTEGER NOT NULL,
       roster_week INTEGER NOT NULL DEFAULT 0,
@@ -152,6 +166,8 @@ export function initializeSqliteDatabase(db: SqliteDatabase): void {
       ON snapshot_player_stats (season, week, season_type, team_id, player_id);
     CREATE INDEX IF NOT EXISTS idx_snapshot_team_stats_lookup
       ON snapshot_team_stats (season, week, season_type, team_id);
+    CREATE INDEX IF NOT EXISTS idx_query_reports_status_created_at
+      ON query_reports (review_status, created_at DESC);
   `);
 
   ensureColumn(db, "query_history", "latency_ms", "INTEGER");
@@ -182,10 +198,14 @@ export function getSqliteDatabase(): SqliteDatabase {
   return database;
 }
 
-export function resetSqliteDatabaseForTests(): void {
+export function resetSqliteDatabase(): void {
   if (database) {
     database.close();
   }
   database = null;
   activePath = null;
+}
+
+export function resetSqliteDatabaseForTests(): void {
+  resetSqliteDatabase();
 }

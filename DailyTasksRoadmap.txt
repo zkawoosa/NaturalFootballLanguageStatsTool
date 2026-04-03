@@ -151,9 +151,9 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 ### SWE Signal Enhancements
 - [X] Scheduled snapshot refresh pipeline with optional Render deploy-hook rollout.
 - [X] Observability dashboard for query volume, failures, latency, confidence, and popular queries.
-- [ ] Report incorrect result feedback loop.
-- [ ] Query explain/debug mode that exposes intent, slots, comparator, limit, scope, and final query plan.
-- [ ] Versioned snapshot management with active-version visibility and rollback.
+- [X] Report incorrect result feedback loop.
+- [X] Query explain/debug mode that exposes intent, slots, comparator, limit, scope, and final query plan.
+- [X] Versioned snapshot management with active-version visibility and rollback.
 - [ ] Multi-season comparison support.
 - [ ] Public API documentation with OpenAPI.
 - [ ] Saved queries / query-history sync.

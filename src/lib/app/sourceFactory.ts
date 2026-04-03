@@ -21,3 +21,7 @@ export function createDataSource(): IDataSource {
 
   return dataSourceInstance;
 }
+
+export function resetDataSourceInstance(): void {
+  dataSourceInstance = null;
+}

@@ -12,7 +12,12 @@ type QueryWorkbenchProps = {
 type QueryUiState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "loaded"; response: QueryResponse }
+  | {
+      status: "loaded";
+      response: QueryResponse;
+      query: string;
+      requestBody: Record<string, unknown>;
+    }
   | { status: "request_error"; message: string };
 
 const RECENT_QUERY_KEY = "nfl_query_recent_v1";
@@ -309,10 +314,14 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
 
     try {
       const previousResponse = state.status === "loaded" ? state.response : null;
+      const requestBody = buildQueryRequestBody(nextQuery, previousResponse) as Record<
+        string,
+        unknown
+      >;
       const response = await fetch("/api/query", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildQueryRequestBody(nextQuery, previousResponse)),
+        body: JSON.stringify(requestBody),
       });
 
       let payload: QueryResponse | { error?: string } | null = null;
@@ -340,7 +349,7 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
       }
 
       const typedPayload = payload as QueryResponse;
-      setState({ status: "loaded", response: typedPayload });
+      setState({ status: "loaded", response: typedPayload, query: nextQuery, requestBody });
 
       setRecentQueries((current) => {
         const nextRecent = updateRecentQueries(nextQuery, current);
@@ -481,6 +490,8 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
         {state.status === "loaded" ? (
           <LoadedQueryState
             response={state.response}
+            query={state.query}
+            requestBody={state.requestBody}
             isLoading={isLoading}
             onSelectAlternative={(nextQuery) => {
               if (isLoading) return;
@@ -495,10 +506,14 @@ export function QueryWorkbench({ samplePrompts }: QueryWorkbenchProps) {
 
 function LoadedQueryState({
   response,
+  query,
+  requestBody,
   isLoading,
   onSelectAlternative,
 }: {
   response: QueryResponse;
+  query: string;
+  requestBody: Record<string, unknown>;
   isLoading: boolean;
   onSelectAlternative: (query: string) => void;
 }) {
@@ -529,6 +544,7 @@ function LoadedQueryState({
             ))}
           </div>
         ) : null}
+        <QueryReportBox query={query} requestBody={requestBody} response={response} />
       </div>
     );
   }
@@ -544,6 +560,7 @@ function LoadedQueryState({
             {(response as { sourceErrorMessage?: string }).sourceErrorMessage}
           </p>
         ) : null}
+        <QueryReportBox query={query} requestBody={requestBody} response={response} />
       </div>
     );
   }
@@ -564,6 +581,7 @@ function LoadedQueryState({
             ))}
           </div>
         )}
+        <QueryReportBox query={query} requestBody={requestBody} response={response} />
       </div>
     );
   }
@@ -574,6 +592,7 @@ function LoadedQueryState({
         <ResponseMeta response={response} />
         <p className="state-title">No matching records</p>
         <p>{response.summary || "No matching records were found."}</p>
+        <QueryReportBox query={query} requestBody={requestBody} response={response} />
       </div>
     );
   }
@@ -588,6 +607,88 @@ function LoadedQueryState({
           <ResultCard key={resultKey(item, index)} item={item} index={index} />
         ))}
       </div>
+      <QueryReportBox query={query} requestBody={requestBody} response={response} />
     </div>
+  );
+}
+
+function QueryReportBox({
+  query,
+  requestBody,
+  response,
+}: {
+  query: string;
+  requestBody: Record<string, unknown>;
+  response: QueryResponse;
+}) {
+  const [note, setNote] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (status === "submitting") {
+      return;
+    }
+
+    setStatus("submitting");
+    setMessage(null);
+
+    try {
+      const reportResponse = await fetch("/api/query/report", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query,
+          requestBody,
+          response,
+          note,
+        }),
+      });
+
+      const payload = (await reportResponse.json()) as { error?: string };
+      if (!reportResponse.ok) {
+        setStatus("error");
+        setMessage(payload.error ?? `Unable to submit report (${reportResponse.status}).`);
+        return;
+      }
+
+      setStatus("success");
+      setMessage("Report submitted for operator review.");
+      setNote("");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Unable to submit report.");
+    }
+  }
+
+  return (
+    <section className="report-box">
+      <div className="section-heading">
+        <div>
+          <p className="section-kicker">Feedback</p>
+          <h3>Report incorrect result</h3>
+        </div>
+      </div>
+      <p className="muted response-copy">
+        Flag a wrong answer so operators can review the query, response snapshot, and parser trace.
+      </p>
+      <form className="report-form" onSubmit={handleSubmit}>
+        <textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          rows={3}
+          placeholder="Optional note about what looks wrong."
+        />
+        <div className="query-actions">
+          <button type="submit" className="button-secondary" disabled={status === "submitting"}>
+            {status === "submitting" ? "Submitting..." : "Submit report"}
+          </button>
+        </div>
+      </form>
+      {message ? (
+        <p className={status === "error" ? "status-bad" : "muted response-copy"}>{message}</p>
+      ) : null}
+    </section>
   );
 }
