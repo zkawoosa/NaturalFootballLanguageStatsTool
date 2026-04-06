@@ -29,10 +29,21 @@ That removes the old upstream auth and 5-requests-per-minute bottleneck.
 ## Supported API routes
 
 - `POST /api/query`
+- `POST /api/query/explain` (requires operator login session)
+- `POST /api/query/report`
 - `GET /api/status` (requires operator login session)
 - `GET /api/teams`
 - `POST /api/status-auth/login`
 - `POST /api/status-auth/logout`
+- `POST /api/status/reports/resolve` (requires operator login session)
+- `POST /api/status/snapshots/activate` (requires operator login session)
+
+## API documentation
+
+- Human-readable entry point: `/api-docs`
+- Raw OpenAPI spec: `/openapi.json`
+
+The OpenAPI file is checked into [openapi.json](/Users/zainkawoosa/nfl-query/public/openapi.json) so it stays versioned with the implementation and smoke-test contract.
 
 ## Data flow
 
@@ -202,4 +213,5 @@ For Render free-tier image services, the deploy-hook call is the practical way t
 
 ## Current roadmap leftovers
 
-- no planned feature work remains; the remaining work is operational freshness monitoring and deploy automation.
+- `Saved queries / query-history sync`
+- operational freshness monitoring and deploy automation alerts

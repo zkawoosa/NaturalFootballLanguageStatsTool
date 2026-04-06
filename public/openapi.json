@@ -1,0 +1,545 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NFL Query API",
+    "version": "1.0.0",
+    "description": "OpenAPI contract for the nflverse-backed NFL query application."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current deployment"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "statusSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "nfl_status_session",
+        "description": "Operator session cookie established through POST /api/status-auth/login."
+      }
+    },
+    "schemas": {
+      "QueryContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "season": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "week": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "team": {
+            "type": "string"
+          },
+          "player": {
+            "type": "string"
+          },
+          "stat": {
+            "type": "string"
+          }
+        }
+      },
+      "QueryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context": {
+            "$ref": "#/components/schemas/QueryContext"
+          }
+        }
+      },
+      "QueryResponse": {
+        "type": "object",
+        "required": ["intent", "slots", "results", "summary", "confidence", "alternatives", "needsClarification"],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": ["leaders", "player_stat", "team_stat", "weekly_summary", "compare", "unknown"]
+          },
+          "slots": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "needsClarification": {
+            "type": "boolean"
+          },
+          "clarificationPrompt": {
+            "type": "string"
+          },
+          "dataSource": {
+            "type": "string",
+            "enum": ["nflverse"]
+          },
+          "dataStale": {
+            "type": "boolean"
+          },
+          "sourceError": {
+            "type": "boolean"
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "RATE_LIMIT",
+              "SOURCE_UNAVAILABLE",
+              "UNAUTHORIZED",
+              "NOT_FOUND",
+              "TIMEOUT",
+              "UPSTREAM_ERROR",
+              "INVALID_RESPONSE",
+              "NO_DATA"
+            ]
+          },
+          "sourceErrorMessage": {
+            "type": "string"
+          },
+          "sourceRetryAfterMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "QueryValidationError": {
+        "type": "object",
+        "required": ["error", "code"],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": ["INVALID_JSON", "INVALID_BODY", "INVALID_QUERY", "INVALID_CONTEXT"]
+          }
+        }
+      },
+      "TeamsResponse": {
+        "type": "object",
+        "required": ["teams"],
+        "properties": {
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "abbreviation"],
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "abbreviation": { "type": "string" },
+                "city": {
+                  "type": ["string", "null"]
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "required": ["source", "healthy", "latencyMs", "checkedAt"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["nflverse"]
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": ["integer", "null"]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cache": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "ttlSeconds": { "type": "integer" },
+              "entries": { "type": "integer" },
+              "hits": { "type": "integer" },
+              "misses": { "type": "integer" },
+              "lastHitAt": { "type": ["string", "null"], "format": "date-time" },
+              "lastMissAt": { "type": ["string", "null"], "format": "date-time" }
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "ExplainRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "minLength": 1 },
+          "context": { "$ref": "#/components/schemas/QueryContext" }
+        }
+      },
+      "ExplainResponse": {
+        "type": "object",
+        "required": ["query", "parsed", "plan"],
+        "properties": {
+          "query": { "type": "string" },
+          "context": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "parsed": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "plan": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ReportRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "minLength": 1 },
+          "requestBody": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportResponse": {
+        "type": "object",
+        "required": ["ok", "reportId"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "reportId": { "type": "integer" }
+        }
+      },
+      "OperatorUnauthorized": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/query": {
+      "post": {
+        "summary": "Run a natural-language NFL stats query",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structured query response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query/explain": {
+      "post": {
+        "summary": "Explain parser output and execution plan",
+        "security": [{ "statusSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Explain response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Operator login required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorUnauthorized"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query/report": {
+      "post": {
+        "summary": "Report an incorrect query result for operator review",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Report stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams": {
+      "get": {
+        "summary": "List NFL teams from the snapshot-backed source",
+        "responses": {
+          "200": {
+            "description": "Team summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Check protected operator status",
+        "security": [{ "statusSession": [] }],
+        "responses": {
+          "200": {
+            "description": "Healthy status response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Operator login required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorUnauthorized"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Degraded or unhealthy status response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status-auth/login": {
+      "post": {
+        "summary": "Create an operator session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "next": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Redirects to the next operator page and sets the session cookie"
+          }
+        }
+      }
+    },
+    "/api/status-auth/logout": {
+      "post": {
+        "summary": "Destroy the operator session",
+        "security": [{ "statusSession": [] }],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "next": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Redirects after clearing the session cookie"
+          }
+        }
+      }
+    },
+    "/api/status/reports/resolve": {
+      "post": {
+        "summary": "Mark a stored query report as resolved",
+        "security": [{ "statusSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Redirects back to the protected status page"
+          }
+        }
+      }
+    },
+    "/api/status/snapshots/activate": {
+      "post": {
+        "summary": "Activate an archived snapshot version",
+        "security": [{ "statusSession": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["version"],
+                "properties": {
+                  "version": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Redirects back to the protected status page after activation"
+          }
+        }
+      }
+    }
+  }
+}
