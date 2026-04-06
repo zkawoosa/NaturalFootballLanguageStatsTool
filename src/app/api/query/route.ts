@@ -554,6 +554,13 @@ async function hydrateCompareResults(
   parsed: ParsedQuery,
   service: ICanonicalStatsService
 ): Promise<QueryHydration> {
+  if (
+    (parsed.slots.compareSeasons?.length ?? 0) >= 2 &&
+    parsed.slots.teams.length + parsed.slots.players.length === 1
+  ) {
+    return hydrateMultiSeasonCompareResults(parsed, service);
+  }
+
   if (parsed.slots.teams.length >= 2) {
     const teamLookup = await fetchTeamLookup(service);
     const statField = parsed.slots.stat ? TEAM_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
@@ -616,6 +623,104 @@ async function hydrateCompareResults(
 
     const summary = compareResults.length
       ? `Compared ${compareResults.length} player result${compareResults.length === 1 ? "" : "s"}.`
+      : "No matching records were found.";
+    return { results: compareResults, summary, alternatives: [] };
+  }
+
+  return { results: [], summary: "No matching records were found.", alternatives: [] };
+}
+
+async function hydrateMultiSeasonCompareResults(
+  parsed: ParsedQuery,
+  service: ICanonicalStatsService
+): Promise<QueryHydration> {
+  const seasons = parsed.slots.compareSeasons?.slice(0, 2) ?? [];
+  if (seasons.length < 2) {
+    return { results: [], summary: "No matching records were found.", alternatives: [] };
+  }
+
+  if (parsed.slots.teams.length === 1) {
+    const teamLookup = await fetchTeamLookup(service);
+    const teamAlias = parsed.slots.teams[0];
+    const team = findTeam(teamAlias, teamLookup);
+    const statField = parsed.slots.stat ? TEAM_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
+    const compareResults = [];
+
+    for (const season of seasons) {
+      const scopedParsed: ParsedQuery = {
+        ...parsed,
+        slots: {
+          ...parsed.slots,
+          season,
+          compareSeasons: undefined,
+        },
+      };
+      const rows = maybeAggregateTeamStats(
+        scopedParsed,
+        await service.getTeamStats({
+          season,
+          week: parsed.slots.week,
+          seasonType: parsed.slots.seasonType,
+          teamId: team?.id,
+          team: team?.id ?? teamAlias,
+        })
+      );
+      const best = sortByStatValue(rows, statField, parsed.slots.sort)[0];
+      if (!best) continue;
+      compareResults.push({
+        type: "compare_team",
+        team: team?.abbreviation ?? teamAlias,
+        stat: parsed.slots.stat,
+        value: statField ? asNumber(best[statField]) : null,
+        season: best.season ?? season,
+        week: best.week,
+      });
+    }
+
+    const summary = compareResults.length
+      ? `Compared ${team?.abbreviation ?? teamAlias} across ${compareResults.length} season result${compareResults.length === 1 ? "" : "s"}.`
+      : "No matching records were found.";
+    return { results: compareResults, summary, alternatives: [] };
+  }
+
+  if (parsed.slots.players.length === 1) {
+    const playerSearch = parsed.slots.players[0];
+    const statField = parsed.slots.stat ? PLAYER_STAT_FIELD_MAP[parsed.slots.stat] : undefined;
+    const compareResults = [];
+
+    for (const season of seasons) {
+      const scopedParsed: ParsedQuery = {
+        ...parsed,
+        slots: {
+          ...parsed.slots,
+          season,
+          compareSeasons: undefined,
+        },
+      };
+      const rows = maybeAggregatePlayerStats(
+        scopedParsed,
+        await service.getPlayerStats({
+          season,
+          week: parsed.slots.week,
+          seasonType: parsed.slots.seasonType,
+          playerSearch,
+          search: playerSearch,
+        })
+      );
+      const best = sortByStatValue(rows, statField, parsed.slots.sort)[0];
+      if (!best) continue;
+      compareResults.push({
+        type: "compare_player",
+        player: best.playerName ?? playerSearch,
+        stat: parsed.slots.stat,
+        value: statField ? asNumber(best[statField]) : null,
+        season: best.season ?? season,
+        week: best.week,
+      });
+    }
+
+    const summary = compareResults.length
+      ? `Compared ${playerSearch} across ${compareResults.length} season result${compareResults.length === 1 ? "" : "s"}.`
       : "No matching records were found.";
     return { results: compareResults, summary, alternatives: [] };
   }

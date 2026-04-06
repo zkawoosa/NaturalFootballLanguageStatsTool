@@ -154,7 +154,7 @@ Build a local-first TypeScript/Next.js NFL natural-language stats site, then dep
 - [X] Report incorrect result feedback loop.
 - [X] Query explain/debug mode that exposes intent, slots, comparator, limit, scope, and final query plan.
 - [X] Versioned snapshot management with active-version visibility and rollback.
-- [ ] Multi-season comparison support.
+- [X] Multi-season comparison support.
 - [ ] Public API documentation with OpenAPI.
 - [ ] Saved queries / query-history sync.
 

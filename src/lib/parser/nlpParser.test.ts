@@ -48,6 +48,18 @@ test("parses compare intent with multiple teams", () => {
   assert.equal(result.clarification, null);
 });
 
+test("parses multi-season compare intent for a single player", () => {
+  const result = parseNflQuery("Compare Josh Allen passing yards in 2024 vs 2025");
+
+  assert.equal(result.intent, "compare");
+  assert.equal(result.slots.players[0], "josh allen");
+  assert.equal(result.slots.stat, "passingYards");
+  assert.deepEqual(result.slots.compareSeasons, [2024, 2025]);
+  assert.equal(result.slots.season, 2024);
+  assert.equal(result.resolution, "answer");
+  assert.equal(result.clarification, null);
+});
+
 test("returns ambiguity when a team alias is mapped to multiple teams", () => {
   const result = parseNflQuery("team stats for united this week");
 

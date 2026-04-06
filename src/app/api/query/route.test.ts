@@ -124,6 +124,70 @@ test("POST /api/query returns only the top row for who-has-the-most leaderboard 
   assert.equal(results[0].value, 420);
 });
 
+test("POST /api/query compares one player across multiple seasons", async () => {
+  const seasonsSeen: number[] = [];
+  setQueryStatsServiceFactoryForTests(() =>
+    createFakeStatsService({
+      getPlayerStats: async (query) => {
+        seasonsSeen.push(query?.season ?? 0);
+        if (query?.season === 2024) {
+          return [
+            {
+              id: "p-2024",
+              source: "nflverse",
+              sourceId: "p-2024",
+              playerId: "00-0034857",
+              playerName: "Josh Allen",
+              teamId: "BUF",
+              teamName: "Buffalo Bills",
+              scope: "season",
+              season: 2024,
+              week: null,
+              passYards: 3731,
+            },
+          ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>;
+        }
+
+        return [
+          {
+            id: "p-2025",
+            source: "nflverse",
+            sourceId: "p-2025",
+            playerId: "00-0034857",
+            playerName: "Josh Allen",
+            teamId: "BUF",
+            teamName: "Buffalo Bills",
+            scope: "season",
+            season: 2025,
+            week: null,
+            passYards: 4018,
+          },
+        ] as unknown as Awaited<ReturnType<ICanonicalStatsService["getPlayerStats"]>>;
+      },
+    })
+  );
+
+  const request = new Request("http://localhost/api/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "Compare Josh Allen passing yards in 2024 vs 2025" }),
+  });
+
+  const response = await POST(request);
+  const body = await readJson(response);
+  const results = body.results as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.intent, "compare");
+  assert.deepEqual(seasonsSeen, [2024, 2025]);
+  assert.equal(results.length, 2);
+  assert.equal(results[0].player, "Josh Allen");
+  assert.equal(results[0].season, 2024);
+  assert.equal(results[0].value, 3731);
+  assert.equal(results[1].season, 2025);
+  assert.equal(results[1].value, 4018);
+});
+
 test("POST /api/query returns clarification response for ambiguous input", async () => {
   let getTeamStatsCalls = 0;
   setQueryStatsServiceFactoryForTests(() =>

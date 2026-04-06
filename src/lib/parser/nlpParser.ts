@@ -15,6 +15,7 @@ export type QuerySlot = {
   scopeType: "week" | "season" | "career" | null;
   week?: number;
   season?: number;
+  compareSeasons?: number[];
   seasonType: "REG" | "POST" | "PREGAME" | "OFFSEASON";
   sort: "asc" | "desc" | null;
   limit: number | null;
@@ -219,6 +220,7 @@ export function parseNflQuery(input: string): ParsedQuery {
   const words = tokenizeEntityWords(normalized);
   const comparator = resolveComparator(normalized);
   const hasPerSeasonSince = PER_SEASON_SINCE_YEAR_RE.test(normalized);
+  const referencedYears = extractReferencedYears(normalized);
 
   const slots: QuerySlot = {
     teams: [],
@@ -253,6 +255,14 @@ export function parseNflQuery(input: string): ParsedQuery {
   } else if (!hasPerSeasonSince && !CAREER_SCOPE_CUES.test(normalized) && standaloneYearMatch) {
     const season = parseInt(standaloneYearMatch[1], 10);
     if (Number.isFinite(season)) slots.season = season;
+  }
+
+  const compareSeasons = resolveCompareSeasons(normalized, referencedYears);
+  if (compareSeasons.length >= 2) {
+    slots.compareSeasons = compareSeasons;
+    if (slots.season === undefined) {
+      slots.season = compareSeasons[0];
+    }
   }
 
   const teamEntities = collectEntities(words, mapTeamAlias);
@@ -355,6 +365,30 @@ function normalizeQuery(value: string): string {
     .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractReferencedYears(value: string): number[] {
+  const matches = value.match(/\b(19\d{2}|20\d{2})\b/g) ?? [];
+  const unique = new Set<number>();
+  for (const match of matches) {
+    const year = Number.parseInt(match, 10);
+    if (Number.isFinite(year)) {
+      unique.add(year);
+    }
+  }
+  return [...unique];
+}
+
+function resolveCompareSeasons(value: string, years: number[]): number[] {
+  if (years.length < 2) {
+    return [];
+  }
+
+  if (!/\bcompare\b|\bvs\b|\bversus\b/.test(value)) {
+    return [];
+  }
+
+  return years.slice(0, 2);
 }
 
 type ResolvedAlias = {
@@ -498,6 +532,9 @@ function detectIntent(value: string, slots: QuerySlot): NflIntent {
     return "player_stat";
   }
 
+  if ((slots.compareSeasons?.length ?? 0) >= 2 && slots.teams.length + slots.players.length >= 1) {
+    return "compare";
+  }
   if (slots.teams.length > 1) return "compare";
   if (slots.teams.length > 0) return "team_stat";
   if (slots.players.length > 0) return "player_stat";
@@ -749,6 +786,12 @@ function detectMissingContext(
   }
 
   if (intent === "compare" && slots.teams.length + slots.players.length < 2) {
+    if (
+      (slots.compareSeasons?.length ?? 0) >= 2 &&
+      slots.teams.length + slots.players.length >= 1
+    ) {
+      return null;
+    }
     return {
       slot: "team",
       prompt: "Who do you want to compare? Please include two teams or players.",
